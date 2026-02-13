@@ -181,26 +181,31 @@ def get_image_media_type(uploaded_file) -> str:
 
 
 def identify_ingredients(client, image_data: str, media_type: str) -> dict:
-    """Use Claude to identify ingredients from an image."""
+    """Use Claude to identify ingredients from an image with retry logic."""
     
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1024,
-        messages=[
-            {
-                "role": "user",
-                "content": [
+    max_retries = 3
+    retry_delay = 2  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            message = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1024,
+                messages=[
                     {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_data,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": """Analyze this image and identify all visible food ingredients. 
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": image_data,
+                                },
+                            },
+                            {
+                                "type": "text",
+                                "text": """Analyze this image and identify all visible food ingredients. 
                         
 Return your response in this exact format:
 INGREDIENTS:
@@ -219,17 +224,27 @@ CATEGORIES:
 - Other: list anything else
 
 Be specific about what you see. If you can identify specific varieties (e.g., cherry tomatoes vs regular tomatoes), please do so."""
+                            }
+                        ],
                     }
                 ],
-            }
-        ],
-    )
-    
-    return {"raw_response": message.content[0].text}
+            )
+            return {"raw_response": message.content[0].text}
+        
+        except anthropic.OverloadedError:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                continue
+            else:
+                raise Exception("The AI service is currently busy. Please try again in a few moments.")
+        except anthropic.RateLimitError:
+            raise Exception("Rate limit reached. Please wait a minute before trying again.")
+        except anthropic.APIError as e:
+            raise Exception(f"API error: {str(e)}")
 
 
 def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None) -> str:
-    """Use Claude to suggest recipes based on identified ingredients."""
+    """Use Claude to suggest recipes based on identified ingredients with retry logic."""
     
     preferences_text = ""
     if dietary_preferences:
@@ -237,13 +252,18 @@ def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, 
     if cuisine_preference and cuisine_preference != "Any":
         preferences_text += f"\nPreferred cuisine: {cuisine_preference}"
     
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2048,
-        messages=[
-            {
-                "role": "user",
-                "content": f"""Based on these available ingredients:
+    max_retries = 3
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            message = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=2048,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"""Based on these available ingredients:
 
 {ingredients}
 {preferences_text}
@@ -258,11 +278,21 @@ Suggest 3 recipes that can be made primarily with these ingredients. For each re
    - Pro tip for the dish
 
 Focus on practical, delicious recipes that make good use of the available ingredients. Minimize additional ingredients needed."""
-            }
-        ],
-    )
-    
-    return message.content[0].text
+                    }
+                ],
+            )
+            return message.content[0].text
+        
+        except anthropic.OverloadedError:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+            else:
+                raise Exception("The AI service is currently busy. Please try again in a few moments.")
+        except anthropic.RateLimitError:
+            raise Exception("Rate limit reached. Please wait a minute before trying again.")
+        except anthropic.APIError as e:
+            raise Exception(f"API error: {str(e)}")
 
 
 def save_to_supabase(supabase: Client, ingredients: str, recipes: str):
@@ -361,48 +391,55 @@ def main():
             progress_text = st.empty()
             progress_bar = st.progress(0)
             
-            progress_text.text("🔍 Analyzing your ingredients...")
-            progress_bar.progress(25)
-            
-            # Encode image
-            image_data = encode_image(image_source)
-            media_type = get_image_media_type(image_source)
-            
-            # Identify ingredients
-            ingredients_result = identify_ingredients(anthropic_client, image_data, media_type)
-            st.session_state['ingredients'] = ingredients_result['raw_response']
-            
-            progress_text.text("👨‍🍳 Creating recipe suggestions...")
-            progress_bar.progress(60)
-            
-            # Get recipe suggestions
-            recipes = suggest_recipes(
-                anthropic_client,
-                st.session_state['ingredients'],
-                dietary_preferences,
-                cuisine_preference
-            )
-            st.session_state['recipes'] = recipes
-            
-            progress_bar.progress(90)
-            
-            # Save to Supabase if configured
-            if supabase_client:
-                save_to_supabase(
-                    supabase_client,
+            try:
+                progress_text.text("🔍 Analyzing your ingredients...")
+                progress_bar.progress(25)
+                
+                # Encode image
+                image_data = encode_image(image_source)
+                media_type = get_image_media_type(image_source)
+                
+                # Identify ingredients
+                ingredients_result = identify_ingredients(anthropic_client, image_data, media_type)
+                st.session_state['ingredients'] = ingredients_result['raw_response']
+                
+                progress_text.text("👨‍🍳 Creating recipe suggestions...")
+                progress_bar.progress(60)
+                
+                # Get recipe suggestions
+                recipes = suggest_recipes(
+                    anthropic_client,
                     st.session_state['ingredients'],
-                    st.session_state['recipes']
+                    dietary_preferences,
+                    cuisine_preference
                 )
-            
-            progress_bar.progress(100)
-            progress_text.text("✅ Done!")
-            
-            # Clear progress after a moment
-            time.sleep(0.5)
-            progress_bar.empty()
-            progress_text.empty()
-            
-            st.success("✅ Recipes ready!")
+                st.session_state['recipes'] = recipes
+                
+                progress_bar.progress(90)
+                
+                # Save to Supabase if configured
+                if supabase_client:
+                    save_to_supabase(
+                        supabase_client,
+                        st.session_state['ingredients'],
+                        st.session_state['recipes']
+                    )
+                
+                progress_bar.progress(100)
+                progress_text.text("✅ Done!")
+                
+                # Clear progress after a moment
+                time.sleep(0.5)
+                progress_bar.empty()
+                progress_text.empty()
+                
+                st.success("✅ Recipes ready!")
+                
+            except Exception as e:
+                progress_bar.empty()
+                progress_text.empty()
+                st.error(f"⚠️ {str(e)}")
+                st.info("💡 Tip: Wait a few seconds and try again. The AI service may be temporarily busy.")
     
     # Results section
     if 'ingredients' in st.session_state or 'recipes' in st.session_state:
