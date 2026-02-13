@@ -9,6 +9,7 @@ import base64
 from datetime import datetime
 from supabase import create_client, Client
 import os
+from streamlit_camera_input_live import camera_input
 
 
 def get_secret(key: str, default=None):
@@ -271,33 +272,30 @@ def main():
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.header("📸 Upload Your Ingredients")
+        st.header("📸 Upload or Take a Photo")
         
         uploaded_file = st.file_uploader(
-            "Take a photo of your fridge, pantry, or ingredients",
+            "Upload a photo of your fridge, pantry, or ingredients",
             type=["jpg", "jpeg", "png", "webp"],
             help="Supported formats: JPG, PNG, WebP"
         )
         
-        if uploaded_file:
-            st.image(uploaded_file, caption="Your ingredients", use_container_width=True)
-            
+        st.markdown("<div style='text-align:center;'>or</div>", unsafe_allow_html=True)
+        
+        camera_image = camera_input("Take a picture with your camera")
+        
+        image_source = uploaded_file or camera_image
+        
+        if image_source:
+            st.image(image_source, caption="Your ingredients", use_container_width=True)
             # Process button
             if st.button("🔍 Identify Ingredients & Get Recipes", type="primary", use_container_width=True):
-                
                 with st.spinner("🔍 Analyzing your ingredients..."):
-                    # Encode image
-                    image_data = encode_image(uploaded_file)
-                    media_type = get_image_media_type(uploaded_file)
-                    
-                    # Identify ingredients
+                    image_data = encode_image(image_source)
+                    media_type = get_image_media_type(image_source)
                     ingredients_result = identify_ingredients(anthropic_client, image_data, media_type)
-                    
-                    # Store in session state
                     st.session_state['ingredients'] = ingredients_result['raw_response']
-                
                 with st.spinner("👨‍🍳 Generating recipe suggestions..."):
-                    # Get recipe suggestions
                     recipes = suggest_recipes(
                         anthropic_client,
                         st.session_state['ingredients'],
@@ -305,15 +303,12 @@ def main():
                         cuisine_preference
                     )
                     st.session_state['recipes'] = recipes
-                
-                # Save to Supabase if configured
                 if supabase_client:
                     save_to_supabase(
                         supabase_client,
                         st.session_state['ingredients'],
                         st.session_state['recipes']
                     )
-                
                 st.success("✅ Analysis complete!")
     
     with col2:
