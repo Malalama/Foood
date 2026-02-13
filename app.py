@@ -23,6 +23,239 @@ def get_secret(key: str, default=None):
     # Fall back to environment variables (for local development)
     return os.getenv(key, default)
 
+
+# Translations
+TRANSLATIONS = {
+    "en": {
+        "title": "🍳 Fridge to Recipe",
+        "subtitle": "Snap a photo of your ingredients and discover delicious recipes!",
+        "preferences": "⚙️ Dietary Preferences",
+        "dietary_requirements": "Dietary Requirements",
+        "preferred_cuisine": "Preferred Cuisine",
+        "cuisine_any": "Any",
+        "add_ingredients": "### 📸 Add Your Ingredients",
+        "take_photo": "📷 Take Photo",
+        "upload_image": "📁 Upload Image",
+        "camera_help": "Point at your fridge or ingredients",
+        "upload_help": "Choose an image",
+        "your_ingredients": "Your ingredients",
+        "find_recipes": "🔍 Find Recipes",
+        "analyzing": "🔍 Analyzing your ingredients...",
+        "creating_recipes": "👨‍🍳 Creating recipe suggestions...",
+        "done": "✅ Done!",
+        "recipes_ready": "✅ Recipes ready!",
+        "detected_ingredients": "🥗 Detected Ingredients",
+        "your_recipes": "### 👨‍🍳 Your Recipes",
+        "save_recipes": "📥 Save Recipes",
+        "history": "📜 History",
+        "load_recent": "Load Recent",
+        "no_history": "No history yet!",
+        "configure_supabase": "Configure Supabase to save history",
+        "tips": "Tips:",
+        "tip_lighting": "Good lighting helps!",
+        "tip_labels": "Show labels clearly",
+        "tip_include": "Include all ingredients",
+        "footer": "Made with ❤️ using Streamlit & Claude AI",
+        "footer_tip": "Tip: Good lighting = better results!",
+        "error_api_key": "⚠️ Anthropic API key not found. Please configure ANTHROPIC_API_KEY in your secrets.",
+        "error_api_key_info": "Get your API key from: https://console.anthropic.com/",
+        "error_busy": "The AI service is currently busy. Please try again in a few moments.",
+        "error_rate_limit": "Rate limit reached. Please wait a minute before trying again.",
+        "error_connection": "Could not connect to AI service. Please check your internet connection.",
+        "error_tip": "💡 Tip: Wait a few seconds and try again. The AI service may be temporarily busy.",
+        "dietary_options": ["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free", "Keto", "Low-Carb", "Nut-Free"],
+        "cuisine_options": ["Any", "Italian", "Asian", "Mexican", "Indian", "Mediterranean", "American", "French"],
+        "ingredients_prompt": """Analyze this image and identify all visible food ingredients. 
+                        
+Return your response in this exact format:
+INGREDIENTS:
+- ingredient 1
+- ingredient 2
+- ingredient 3
+(etc.)
+
+CATEGORIES:
+- Proteins: list any proteins
+- Vegetables: list any vegetables
+- Fruits: list any fruits
+- Dairy: list any dairy products
+- Grains/Carbs: list any grains or carbs
+- Condiments/Sauces: list any condiments or sauces
+- Other: list anything else
+
+Be specific about what you see. If you can identify specific varieties (e.g., cherry tomatoes vs regular tomatoes), please do so.""",
+        "recipes_prompt": """Based on these available ingredients:
+
+{ingredients}
+{preferences}
+
+Suggest 3 recipes that can be made primarily with these ingredients. For each recipe, provide:
+
+1. **Recipe Name** (with emoji)
+   - Difficulty: Easy/Medium/Hard
+   - Time: estimated cooking time
+   - Ingredients needed (mark any NOT in the list with ⚠️)
+   - Brief cooking instructions (5-7 steps)
+   - Pro tip for the dish
+
+Focus on practical, delicious recipes that make good use of the available ingredients. Minimize additional ingredients needed."""
+    },
+    "fr": {
+        "title": "🍳 Frigo en Recettes",
+        "subtitle": "Prenez une photo de vos ingrédients et découvrez de délicieuses recettes !",
+        "preferences": "⚙️ Préférences Alimentaires",
+        "dietary_requirements": "Régimes Alimentaires",
+        "preferred_cuisine": "Cuisine Préférée",
+        "cuisine_any": "Toutes",
+        "add_ingredients": "### 📸 Ajoutez Vos Ingrédients",
+        "take_photo": "📷 Prendre Photo",
+        "upload_image": "📁 Importer Image",
+        "camera_help": "Visez votre frigo ou vos ingrédients",
+        "upload_help": "Choisir une image",
+        "your_ingredients": "Vos ingrédients",
+        "find_recipes": "🔍 Trouver des Recettes",
+        "analyzing": "🔍 Analyse de vos ingrédients...",
+        "creating_recipes": "👨‍🍳 Création des suggestions de recettes...",
+        "done": "✅ Terminé !",
+        "recipes_ready": "✅ Recettes prêtes !",
+        "detected_ingredients": "🥗 Ingrédients Détectés",
+        "your_recipes": "### 👨‍🍳 Vos Recettes",
+        "save_recipes": "📥 Sauvegarder",
+        "history": "📜 Historique",
+        "load_recent": "Charger",
+        "no_history": "Pas encore d'historique !",
+        "configure_supabase": "Configurez Supabase pour sauvegarder l'historique",
+        "tips": "Conseils :",
+        "tip_lighting": "Un bon éclairage aide !",
+        "tip_labels": "Montrez les étiquettes",
+        "tip_include": "Incluez tous les ingrédients",
+        "footer": "Fait avec ❤️ avec Streamlit & Claude AI",
+        "footer_tip": "Conseil : Bon éclairage = meilleurs résultats !",
+        "error_api_key": "⚠️ Clé API Anthropic non trouvée. Veuillez configurer ANTHROPIC_API_KEY.",
+        "error_api_key_info": "Obtenez votre clé API sur : https://console.anthropic.com/",
+        "error_busy": "Le service IA est actuellement occupé. Veuillez réessayer dans quelques instants.",
+        "error_rate_limit": "Limite de requêtes atteinte. Veuillez patienter une minute.",
+        "error_connection": "Impossible de se connecter au service IA. Vérifiez votre connexion internet.",
+        "error_tip": "💡 Conseil : Attendez quelques secondes et réessayez.",
+        "dietary_options": ["Végétarien", "Végan", "Sans Gluten", "Sans Lactose", "Keto", "Low-Carb", "Sans Noix"],
+        "cuisine_options": ["Toutes", "Italienne", "Asiatique", "Mexicaine", "Indienne", "Méditerranéenne", "Américaine", "Française"],
+        "ingredients_prompt": """Analysez cette image et identifiez tous les ingrédients alimentaires visibles. 
+                        
+Répondez dans ce format exact :
+INGRÉDIENTS :
+- ingrédient 1
+- ingrédient 2
+- ingrédient 3
+(etc.)
+
+CATÉGORIES :
+- Protéines : listez les protéines
+- Légumes : listez les légumes
+- Fruits : listez les fruits
+- Produits laitiers : listez les produits laitiers
+- Féculents/Glucides : listez les féculents
+- Condiments/Sauces : listez les condiments ou sauces
+- Autres : listez le reste
+
+Soyez précis. Si vous pouvez identifier des variétés spécifiques (ex: tomates cerises vs tomates classiques), faites-le.""",
+        "recipes_prompt": """Basé sur ces ingrédients disponibles :
+
+{ingredients}
+{preferences}
+
+Suggérez 3 recettes réalisables principalement avec ces ingrédients. Pour chaque recette, fournissez :
+
+1. **Nom de la Recette** (avec emoji)
+   - Difficulté : Facile/Moyen/Difficile
+   - Temps : temps de préparation estimé
+   - Ingrédients nécessaires (marquez ceux NON dans la liste avec ⚠️)
+   - Instructions de cuisson (5-7 étapes)
+   - Astuce du chef
+
+Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingrédients supplémentaires nécessaires."""
+    },
+    "pl": {
+        "title": "🍳 Z Lodówki na Talerz",
+        "subtitle": "Zrób zdjęcie swoich składników i odkryj pyszne przepisy!",
+        "preferences": "⚙️ Preferencje Dietetyczne",
+        "dietary_requirements": "Wymagania Dietetyczne",
+        "preferred_cuisine": "Preferowana Kuchnia",
+        "cuisine_any": "Dowolna",
+        "add_ingredients": "### 📸 Dodaj Swoje Składniki",
+        "take_photo": "📷 Zrób Zdjęcie",
+        "upload_image": "📁 Wgraj Obraz",
+        "camera_help": "Skieruj na lodówkę lub składniki",
+        "upload_help": "Wybierz obraz",
+        "your_ingredients": "Twoje składniki",
+        "find_recipes": "🔍 Znajdź Przepisy",
+        "analyzing": "🔍 Analizowanie składników...",
+        "creating_recipes": "👨‍🍳 Tworzenie propozycji przepisów...",
+        "done": "✅ Gotowe!",
+        "recipes_ready": "✅ Przepisy gotowe!",
+        "detected_ingredients": "🥗 Wykryte Składniki",
+        "your_recipes": "### 👨‍🍳 Twoje Przepisy",
+        "save_recipes": "📥 Zapisz Przepisy",
+        "history": "📜 Historia",
+        "load_recent": "Załaduj",
+        "no_history": "Brak historii!",
+        "configure_supabase": "Skonfiguruj Supabase aby zapisywać historię",
+        "tips": "Wskazówki:",
+        "tip_lighting": "Dobre oświetlenie pomaga!",
+        "tip_labels": "Pokaż etykiety wyraźnie",
+        "tip_include": "Uwzględnij wszystkie składniki",
+        "footer": "Stworzone z ❤️ przy użyciu Streamlit & Claude AI",
+        "footer_tip": "Wskazówka: Dobre światło = lepsze wyniki!",
+        "error_api_key": "⚠️ Nie znaleziono klucza API Anthropic. Skonfiguruj ANTHROPIC_API_KEY.",
+        "error_api_key_info": "Uzyskaj klucz API na: https://console.anthropic.com/",
+        "error_busy": "Usługa AI jest obecnie zajęta. Spróbuj ponownie za chwilę.",
+        "error_rate_limit": "Osiągnięto limit zapytań. Poczekaj minutę przed ponowną próbą.",
+        "error_connection": "Nie można połączyć się z usługą AI. Sprawdź połączenie internetowe.",
+        "error_tip": "💡 Wskazówka: Poczekaj kilka sekund i spróbuj ponownie.",
+        "dietary_options": ["Wegetariańskie", "Wegańskie", "Bezglutenowe", "Bez Laktozy", "Keto", "Low-Carb", "Bez Orzechów"],
+        "cuisine_options": ["Dowolna", "Włoska", "Azjatycka", "Meksykańska", "Indyjska", "Śródziemnomorska", "Amerykańska", "Francuska"],
+        "ingredients_prompt": """Przeanalizuj ten obraz i zidentyfikuj wszystkie widoczne składniki spożywcze. 
+                        
+Odpowiedz w tym formacie:
+SKŁADNIKI:
+- składnik 1
+- składnik 2
+- składnik 3
+(itd.)
+
+KATEGORIE:
+- Białka: wymień białka
+- Warzywa: wymień warzywa
+- Owoce: wymień owoce
+- Nabiał: wymień produkty mleczne
+- Węglowodany: wymień węglowodany
+- Przyprawy/Sosy: wymień przyprawy i sosy
+- Inne: wymień pozostałe
+
+Bądź konkretny. Jeśli możesz zidentyfikować konkretne odmiany (np. pomidory koktajlowe vs zwykłe), zrób to.""",
+        "recipes_prompt": """Na podstawie tych dostępnych składników:
+
+{ingredients}
+{preferences}
+
+Zaproponuj 3 przepisy, które można przygotować głównie z tych składników. Dla każdego przepisu podaj:
+
+1. **Nazwa Przepisu** (z emoji)
+   - Trudność: Łatwy/Średni/Trudny
+   - Czas: szacowany czas przygotowania
+   - Potrzebne składniki (oznacz te SPOZA listy symbolem ⚠️)
+   - Instrukcje gotowania (5-7 kroków)
+   - Wskazówka szefa kuchni
+
+Skup się na praktycznych i pysznych przepisach. Minimalizuj dodatkowe składniki."""
+    }
+}
+
+
+def get_text(key: str) -> str:
+    """Get translated text for current language."""
+    lang = st.session_state.get('language', 'en')
+    return TRANSLATIONS[lang].get(key, key)
+
 # Page configuration
 st.set_page_config(
     page_title="Fridge to Recipe",
@@ -140,6 +373,20 @@ st.markdown("""
         padding: 1rem;
         font-size: 0.85rem;
     }
+    
+    /* Language selector flags */
+    .stButton > button[kind="secondary"] {
+        background: transparent;
+        border: 2px solid #e0e0e0;
+        font-size: 1.5rem;
+        padding: 0.3rem;
+        min-height: 40px;
+    }
+    
+    .stButton > button[kind="secondary"]:hover {
+        border-color: #4ECDC4;
+        transform: scale(1.1);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -180,11 +427,12 @@ def get_image_media_type(uploaded_file) -> str:
     return "image/jpeg"
 
 
-def identify_ingredients(client, image_data: str, media_type: str) -> dict:
+def identify_ingredients(client, image_data: str, media_type: str, lang: str = "en") -> dict:
     """Use Claude to identify ingredients from an image with retry logic."""
     
     max_retries = 3
     retry_delay = 2  # seconds
+    prompt = TRANSLATIONS[lang]["ingredients_prompt"]
     
     for attempt in range(max_retries):
         try:
@@ -205,25 +453,7 @@ def identify_ingredients(client, image_data: str, media_type: str) -> dict:
                             },
                             {
                                 "type": "text",
-                                "text": """Analyze this image and identify all visible food ingredients. 
-                        
-Return your response in this exact format:
-INGREDIENTS:
-- ingredient 1
-- ingredient 2
-- ingredient 3
-(etc.)
-
-CATEGORIES:
-- Proteins: list any proteins
-- Vegetables: list any vegetables
-- Fruits: list any fruits
-- Dairy: list any dairy products
-- Grains/Carbs: list any grains or carbs
-- Condiments/Sauces: list any condiments or sauces
-- Other: list anything else
-
-Be specific about what you see. If you can identify specific varieties (e.g., cherry tomatoes vs regular tomatoes), please do so."""
+                                "text": prompt
                             }
                         ],
                     }
@@ -253,17 +483,20 @@ Be specific about what you see. If you can identify specific varieties (e.g., ch
             raise Exception(f"Unexpected error: {str(e)}")
 
 
-def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None) -> str:
+def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en") -> str:
     """Use Claude to suggest recipes based on identified ingredients with retry logic."""
     
     preferences_text = ""
     if dietary_preferences:
         preferences_text += f"\nDietary requirements: {', '.join(dietary_preferences)}"
-    if cuisine_preference and cuisine_preference != "Any":
+    if cuisine_preference and cuisine_preference != "Any" and cuisine_preference != "Toutes" and cuisine_preference != "Dowolna":
         preferences_text += f"\nPreferred cuisine: {cuisine_preference}"
     
     max_retries = 3
     retry_delay = 2
+    
+    prompt_template = TRANSLATIONS[lang]["recipes_prompt"]
+    prompt = prompt_template.format(ingredients=ingredients, preferences=preferences_text)
     
     for attempt in range(max_retries):
         try:
@@ -273,21 +506,7 @@ def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, 
                 messages=[
                     {
                         "role": "user",
-                        "content": f"""Based on these available ingredients:
-
-{ingredients}
-{preferences_text}
-
-Suggest 3 recipes that can be made primarily with these ingredients. For each recipe, provide:
-
-1. **Recipe Name** (with emoji)
-   - Difficulty: Easy/Medium/Hard
-   - Time: estimated cooking time
-   - Ingredients needed (mark any NOT in the list with ⚠️)
-   - Brief cooking instructions (5-7 steps)
-   - Pro tip for the dish
-
-Focus on practical, delicious recipes that make good use of the available ingredients. Minimize additional ingredients needed."""
+                        "content": prompt
                     }
                 ],
             )
@@ -344,9 +563,28 @@ def load_search_history(supabase: Client, limit: int = 10):
 
 
 def main():
+    # Initialize language in session state
+    if 'language' not in st.session_state:
+        st.session_state.language = 'en'
+    
+    # Language selector with flags at the top
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
+    with col1:
+        if st.button("🇬🇧", use_container_width=True, help="English"):
+            st.session_state.language = 'en'
+            st.rerun()
+    with col2:
+        if st.button("🇫🇷", use_container_width=True, help="Français"):
+            st.session_state.language = 'fr'
+            st.rerun()
+    with col3:
+        if st.button("🇵🇱", use_container_width=True, help="Polski"):
+            st.session_state.language = 'pl'
+            st.rerun()
+    
     # Header
-    st.markdown('<h1 class="main-header">🍳 Fridge to Recipe</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Snap a photo of your ingredients and discover delicious recipes!</p>', unsafe_allow_html=True)
+    st.markdown(f'<h1 class="main-header">{get_text("title")}</h1>', unsafe_allow_html=True)
+    st.markdown(f'<p class="subtitle">{get_text("subtitle")}</p>', unsafe_allow_html=True)
     
     # Initialize clients
     anthropic_client = init_anthropic()
@@ -354,46 +592,46 @@ def main():
     
     # Check for API key
     if not anthropic_client:
-        st.error("⚠️ Anthropic API key not found. Please configure ANTHROPIC_API_KEY in your secrets.")
-        st.info("Get your API key from: https://console.anthropic.com/")
+        st.error(get_text("error_api_key"))
+        st.info(get_text("error_api_key_info"))
         return
     
     # Preferences in expander (mobile-friendly)
-    with st.expander("⚙️ Dietary Preferences", expanded=False):
+    with st.expander(get_text("preferences"), expanded=False):
         dietary_preferences = st.multiselect(
-            "Dietary Requirements",
-            ["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free", "Keto", "Low-Carb", "Nut-Free"],
+            get_text("dietary_requirements"),
+            get_text("dietary_options"),
             default=[],
             label_visibility="collapsed"
         )
         
         cuisine_preference = st.selectbox(
-            "Preferred Cuisine",
-            ["Any", "Italian", "Asian", "Mexican", "Indian", "Mediterranean", "American", "French"]
+            get_text("preferred_cuisine"),
+            get_text("cuisine_options")
         )
     
     # Image input section with tabs for camera/upload
-    st.markdown("### 📸 Add Your Ingredients")
+    st.markdown(get_text("add_ingredients"))
     
-    tab_camera, tab_upload = st.tabs(["📷 Take Photo", "📁 Upload Image"])
+    tab_camera, tab_upload = st.tabs([get_text("take_photo"), get_text("upload_image")])
     
     image_source = None
     
     with tab_camera:
         camera_image = st.camera_input(
-            "Point at your fridge or ingredients",
+            get_text("camera_help"),
             label_visibility="collapsed",
-            help="Tap to take a photo"
+            help=get_text("camera_help")
         )
         if camera_image:
             image_source = camera_image
     
     with tab_upload:
         uploaded_image = st.file_uploader(
-            "Choose an image",
+            get_text("upload_help"),
             type=["jpg", "jpeg", "png", "webp"],
             label_visibility="collapsed",
-            help="Supported formats: JPG, PNG, WebP"
+            help="JPG, PNG, WebP"
         )
         if uploaded_image:
             image_source = uploaded_image
@@ -401,17 +639,17 @@ def main():
     # Process image if available
     if image_source:
         # Show preview
-        st.image(image_source, caption="Your ingredients", use_container_width=True)
+        st.image(image_source, caption=get_text("your_ingredients"), use_container_width=True)
         
         # Analyze button
-        if st.button("🔍 Find Recipes", type="primary", use_container_width=True):
+        if st.button(get_text("find_recipes"), type="primary", use_container_width=True):
             
             # Progress indicator
             progress_text = st.empty()
             progress_bar = st.progress(0)
             
             try:
-                progress_text.text("🔍 Analyzing your ingredients...")
+                progress_text.text(get_text("analyzing"))
                 progress_bar.progress(25)
                 
                 # Encode image
@@ -419,10 +657,11 @@ def main():
                 media_type = get_image_media_type(image_source)
                 
                 # Identify ingredients
-                ingredients_result = identify_ingredients(anthropic_client, image_data, media_type)
+                lang = st.session_state.language
+                ingredients_result = identify_ingredients(anthropic_client, image_data, media_type, lang)
                 st.session_state['ingredients'] = ingredients_result['raw_response']
                 
-                progress_text.text("👨‍🍳 Creating recipe suggestions...")
+                progress_text.text(get_text("creating_recipes"))
                 progress_bar.progress(60)
                 
                 # Get recipe suggestions
@@ -430,7 +669,8 @@ def main():
                     anthropic_client,
                     st.session_state['ingredients'],
                     dietary_preferences,
-                    cuisine_preference
+                    cuisine_preference,
+                    lang
                 )
                 st.session_state['recipes'] = recipes
                 
@@ -445,20 +685,20 @@ def main():
                     )
                 
                 progress_bar.progress(100)
-                progress_text.text("✅ Done!")
+                progress_text.text(get_text("done"))
                 
                 # Clear progress after a moment
                 time.sleep(0.5)
                 progress_bar.empty()
                 progress_text.empty()
                 
-                st.success("✅ Recipes ready!")
+                st.success(get_text("recipes_ready"))
                 
             except Exception as e:
                 progress_bar.empty()
                 progress_text.empty()
                 st.error(f"⚠️ {str(e)}")
-                st.info("💡 Tip: Wait a few seconds and try again. The AI service may be temporarily busy.")
+                st.info(get_text("error_tip"))
     
     # Results section
     if 'ingredients' in st.session_state or 'recipes' in st.session_state:
@@ -466,17 +706,17 @@ def main():
         
         # Ingredients found
         if 'ingredients' in st.session_state:
-            with st.expander("🥗 Detected Ingredients", expanded=False):
+            with st.expander(get_text("detected_ingredients"), expanded=False):
                 st.markdown(st.session_state['ingredients'])
         
         # Recipe suggestions
         if 'recipes' in st.session_state:
-            st.markdown("### 👨‍🍳 Your Recipes")
+            st.markdown(get_text("your_recipes"))
             st.markdown(st.session_state['recipes'])
             
             # Download button
             st.download_button(
-                label="📥 Save Recipes",
+                label=get_text("save_recipes"),
                 data=st.session_state['recipes'],
                 file_name="my_recipes.txt",
                 mime="text/plain",
@@ -485,36 +725,36 @@ def main():
     
     # Sidebar for history (optional)
     with st.sidebar:
-        st.header("📜 History")
+        st.header(get_text("history"))
         
         if supabase_client:
-            if st.button("Load Recent", use_container_width=True):
+            if st.button(get_text("load_recent"), use_container_width=True):
                 history = load_search_history(supabase_client)
                 if history:
                     for item in history[:5]:
                         with st.expander(f"🕐 {item['created_at'][:10]}"):
                             st.write(item['ingredients_detected'][:150] + "...")
                 else:
-                    st.info("No history yet!")
+                    st.info(get_text("no_history"))
         else:
-            st.info("Configure Supabase to save history")
+            st.info(get_text("configure_supabase"))
         
         st.divider()
-        st.markdown("""
+        st.markdown(f"""
         <div style='font-size: 0.8rem; color: #888;'>
-        <strong>Tips:</strong><br>
-        • Good lighting helps!<br>
-        • Show labels clearly<br>
-        • Include all ingredients
+        <strong>{get_text("tips")}</strong><br>
+        • {get_text("tip_lighting")}<br>
+        • {get_text("tip_labels")}<br>
+        • {get_text("tip_include")}
         </div>
         """, unsafe_allow_html=True)
     
     # Footer
     st.divider()
-    st.markdown("""
+    st.markdown(f"""
     <div class="footer">
-        Made with ❤️ using Streamlit & Claude AI<br>
-        <small>Tip: Good lighting = better results!</small>
+        {get_text("footer")}<br>
+        <small>{get_text("footer_tip")}</small>
     </div>
     """, unsafe_allow_html=True)
 
