@@ -9,10 +9,18 @@ import base64
 from datetime import datetime
 from supabase import create_client, Client
 import os
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+
+def get_secret(key: str, default=None):
+    """Get secret from Streamlit secrets (cloud) or environment variables (local)."""
+    # First try Streamlit secrets (for Streamlit Cloud)
+    try:
+        return st.secrets[key]
+    except (KeyError, FileNotFoundError):
+        pass
+    
+    # Fall back to environment variables (for local development)
+    return os.getenv(key, default)
 
 # Page configuration
 st.set_page_config(
@@ -65,9 +73,9 @@ st.markdown("""
 # Initialize Supabase client
 @st.cache_resource
 def init_supabase() -> Client:
-    """Initialize Supabase client with credentials from environment."""
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
+    """Initialize Supabase client with credentials from secrets."""
+    url = get_secret("SUPABASE_URL")
+    key = get_secret("SUPABASE_KEY")
     
     if not url or not key:
         return None
@@ -79,7 +87,7 @@ def init_supabase() -> Client:
 @st.cache_resource
 def init_anthropic():
     """Initialize Anthropic client."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = get_secret("ANTHROPIC_API_KEY")
     if not api_key:
         return None
     return anthropic.Anthropic(api_key=api_key)
