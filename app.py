@@ -189,7 +189,7 @@ def identify_ingredients(client, image_data: str, media_type: str) -> dict:
     for attempt in range(max_retries):
         try:
             message = client.messages.create(
-                model="claude-3-5-sonnet-latest",
+                model="claude-sonnet-4-5-20250929",
                 max_tokens=1024,
                 messages=[
                     {
@@ -268,7 +268,7 @@ def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, 
     for attempt in range(max_retries):
         try:
             message = client.messages.create(
-                model="claude-3-5-sonnet-latest",
+                model="claude-sonnet-4-5-20250929",
                 max_tokens=2048,
                 messages=[
                     {
