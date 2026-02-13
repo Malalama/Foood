@@ -231,16 +231,26 @@ Be specific about what you see. If you can identify specific varieties (e.g., ch
             )
             return {"raw_response": message.content[0].text}
         
-        except anthropic.OverloadedError:
+        except anthropic.APIStatusError as e:
+            # Handle overloaded (529) and rate limit (429) errors
+            if e.status_code in [529, 503]:  # Overloaded or service unavailable
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                else:
+                    raise Exception("The AI service is currently busy. Please try again in a few moments.")
+            elif e.status_code == 429:  # Rate limit
+                raise Exception("Rate limit reached. Please wait a minute before trying again.")
+            else:
+                raise Exception(f"API error ({e.status_code}): {str(e)}")
+        except anthropic.APIConnectionError:
             if attempt < max_retries - 1:
-                time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                time.sleep(retry_delay * (attempt + 1))
                 continue
             else:
-                raise Exception("The AI service is currently busy. Please try again in a few moments.")
-        except anthropic.RateLimitError:
-            raise Exception("Rate limit reached. Please wait a minute before trying again.")
-        except anthropic.APIError as e:
-            raise Exception(f"API error: {str(e)}")
+                raise Exception("Could not connect to AI service. Please check your internet connection.")
+        except Exception as e:
+            raise Exception(f"Unexpected error: {str(e)}")
 
 
 def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None) -> str:
@@ -283,16 +293,25 @@ Focus on practical, delicious recipes that make good use of the available ingred
             )
             return message.content[0].text
         
-        except anthropic.OverloadedError:
+        except anthropic.APIStatusError as e:
+            if e.status_code in [529, 503]:
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                else:
+                    raise Exception("The AI service is currently busy. Please try again in a few moments.")
+            elif e.status_code == 429:
+                raise Exception("Rate limit reached. Please wait a minute before trying again.")
+            else:
+                raise Exception(f"API error ({e.status_code}): {str(e)}")
+        except anthropic.APIConnectionError:
             if attempt < max_retries - 1:
                 time.sleep(retry_delay * (attempt + 1))
                 continue
             else:
-                raise Exception("The AI service is currently busy. Please try again in a few moments.")
-        except anthropic.RateLimitError:
-            raise Exception("Rate limit reached. Please wait a minute before trying again.")
-        except anthropic.APIError as e:
-            raise Exception(f"API error: {str(e)}")
+                raise Exception("Could not connect to AI service. Please check your internet connection.")
+        except Exception as e:
+            raise Exception(f"Unexpected error: {str(e)}")
 
 
 def save_to_supabase(supabase: Client, ingredients: str, recipes: str):
