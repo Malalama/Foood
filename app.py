@@ -6,10 +6,10 @@ Upload a photo of your ingredients and get personalized recipe suggestions!
 import streamlit as st
 import anthropic
 import base64
+import time
 from datetime import datetime
 from supabase import create_client, Client
 import os
-from streamlit_camera_input_live import camera_input
 
 
 def get_secret(key: str, default=None):
@@ -27,45 +27,118 @@ def get_secret(key: str, default=None):
 st.set_page_config(
     page_title="Fridge to Recipe",
     page_icon="🍳",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="centered",  # Better for mobile
+    initial_sidebar_state="collapsed"  # Collapsed by default on mobile
 )
 
-# Custom CSS for better styling
+# Mobile-friendly CSS
 st.markdown("""
 <style>
+    /* Mobile-first responsive design */
     .main-header {
-        font-size: 3rem;
+        font-size: clamp(1.8rem, 5vw, 3rem);
         font-weight: bold;
         background: linear-gradient(90deg, #FF6B6B, #4ECDC4);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        padding: 1rem 0;
+        padding: 0.5rem 0;
+        margin-bottom: 0.5rem;
     }
-    .ingredient-tag {
-        display: inline-block;
-        background-color: #4ECDC4;
-        color: white;
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        margin: 0.2rem;
-        font-size: 0.9rem;
+    
+    .subtitle {
+        text-align: center;
+        color: #666;
+        font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+        padding: 0 1rem;
+        margin-bottom: 1rem;
     }
-    .recipe-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 15px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        color: white;
-    }
+    
+    /* Better button styling for touch */
     .stButton > button {
         background: linear-gradient(90deg, #FF6B6B, #4ECDC4);
         color: white;
         border: none;
         border-radius: 25px;
-        padding: 0.5rem 2rem;
+        padding: 0.75rem 1.5rem;
         font-weight: bold;
+        font-size: 1rem;
+        min-height: 50px;  /* Easier to tap on mobile */
+        width: 100%;
+        touch-action: manipulation;
+    }
+    
+    .stButton > button:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 15px rgba(78, 205, 196, 0.4);
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0;
+        justify-content: center;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+    }
+    
+    /* Image/camera input improvements */
+    [data-testid="stFileUploader"], 
+    [data-testid="stCameraInput"] {
+        border: 2px dashed #4ECDC4;
+        border-radius: 15px;
+        padding: 1rem;
+    }
+    
+    /* Improve readability on small screens */
+    .stMarkdown {
+        font-size: clamp(0.9rem, 2.5vw, 1rem);
+    }
+    
+    /* Better spacing for mobile */
+    .block-container {
+        padding: 1rem 1rem 3rem 1rem;
+        max-width: 100%;
+    }
+    
+    @media (min-width: 768px) {
+        .block-container {
+            padding: 2rem 3rem 3rem 3rem;
+            max-width: 900px;
+        }
+    }
+    
+    /* Expander improvements */
+    .streamlit-expanderHeader {
+        font-size: 1rem;
+        font-weight: 600;
+    }
+    
+    /* Download button */
+    .stDownloadButton > button {
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        min-height: 50px;
+    }
+    
+    /* Success/info messages */
+    .stSuccess, .stInfo {
+        border-radius: 10px;
+    }
+    
+    /* Hide hamburger menu on mobile for cleaner look */
+    #MainMenu {visibility: hidden;}
+    
+    /* Footer styling */
+    .footer {
+        text-align: center;
+        color: #888;
+        padding: 1rem;
+        font-size: 0.85rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -224,7 +297,7 @@ def load_search_history(supabase: Client, limit: int = 10):
 def main():
     # Header
     st.markdown('<h1 class="main-header">🍳 Fridge to Recipe</h1>', unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #666;'>Upload a photo of your ingredients and discover delicious recipes!</p>", unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Snap a photo of your ingredients and discover delicious recipes!</p>', unsafe_allow_html=True)
     
     # Initialize clients
     anthropic_client = init_anthropic()
@@ -232,116 +305,160 @@ def main():
     
     # Check for API key
     if not anthropic_client:
-        st.error("⚠️ Anthropic API key not found. Please set ANTHROPIC_API_KEY in your .env file.")
+        st.error("⚠️ Anthropic API key not found. Please configure ANTHROPIC_API_KEY in your secrets.")
         st.info("Get your API key from: https://console.anthropic.com/")
         return
     
-    # Sidebar for preferences
-    with st.sidebar:
-        st.header("⚙️ Preferences")
-        
+    # Preferences in expander (mobile-friendly)
+    with st.expander("⚙️ Dietary Preferences", expanded=False):
         dietary_preferences = st.multiselect(
             "Dietary Requirements",
             ["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free", "Keto", "Low-Carb", "Nut-Free"],
-            default=[]
+            default=[],
+            label_visibility="collapsed"
         )
         
         cuisine_preference = st.selectbox(
             "Preferred Cuisine",
             ["Any", "Italian", "Asian", "Mexican", "Indian", "Mediterranean", "American", "French"]
         )
+    
+    # Image input section with tabs for camera/upload
+    st.markdown("### 📸 Add Your Ingredients")
+    
+    tab_camera, tab_upload = st.tabs(["📷 Take Photo", "📁 Upload Image"])
+    
+    image_source = None
+    
+    with tab_camera:
+        camera_image = st.camera_input(
+            "Point at your fridge or ingredients",
+            label_visibility="collapsed",
+            help="Tap to take a photo"
+        )
+        if camera_image:
+            image_source = camera_image
+    
+    with tab_upload:
+        uploaded_image = st.file_uploader(
+            "Choose an image",
+            type=["jpg", "jpeg", "png", "webp"],
+            label_visibility="collapsed",
+            help="Supported formats: JPG, PNG, WebP"
+        )
+        if uploaded_image:
+            image_source = uploaded_image
+    
+    # Process image if available
+    if image_source:
+        # Show preview
+        st.image(image_source, caption="Your ingredients", use_container_width=True)
         
+        # Analyze button
+        if st.button("🔍 Find Recipes", type="primary", use_container_width=True):
+            
+            # Progress indicator
+            progress_text = st.empty()
+            progress_bar = st.progress(0)
+            
+            progress_text.text("🔍 Analyzing your ingredients...")
+            progress_bar.progress(25)
+            
+            # Encode image
+            image_data = encode_image(image_source)
+            media_type = get_image_media_type(image_source)
+            
+            # Identify ingredients
+            ingredients_result = identify_ingredients(anthropic_client, image_data, media_type)
+            st.session_state['ingredients'] = ingredients_result['raw_response']
+            
+            progress_text.text("👨‍🍳 Creating recipe suggestions...")
+            progress_bar.progress(60)
+            
+            # Get recipe suggestions
+            recipes = suggest_recipes(
+                anthropic_client,
+                st.session_state['ingredients'],
+                dietary_preferences,
+                cuisine_preference
+            )
+            st.session_state['recipes'] = recipes
+            
+            progress_bar.progress(90)
+            
+            # Save to Supabase if configured
+            if supabase_client:
+                save_to_supabase(
+                    supabase_client,
+                    st.session_state['ingredients'],
+                    st.session_state['recipes']
+                )
+            
+            progress_bar.progress(100)
+            progress_text.text("✅ Done!")
+            
+            # Clear progress after a moment
+            time.sleep(0.5)
+            progress_bar.empty()
+            progress_text.empty()
+            
+            st.success("✅ Recipes ready!")
+    
+    # Results section
+    if 'ingredients' in st.session_state or 'recipes' in st.session_state:
         st.divider()
         
-        # History section (if Supabase is configured)
+        # Ingredients found
+        if 'ingredients' in st.session_state:
+            with st.expander("🥗 Detected Ingredients", expanded=False):
+                st.markdown(st.session_state['ingredients'])
+        
+        # Recipe suggestions
+        if 'recipes' in st.session_state:
+            st.markdown("### 👨‍🍳 Your Recipes")
+            st.markdown(st.session_state['recipes'])
+            
+            # Download button
+            st.download_button(
+                label="📥 Save Recipes",
+                data=st.session_state['recipes'],
+                file_name="my_recipes.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
+    
+    # Sidebar for history (optional)
+    with st.sidebar:
+        st.header("📜 History")
+        
         if supabase_client:
-            st.header("📜 Recent Searches")
-            if st.button("Load History"):
+            if st.button("Load Recent", use_container_width=True):
                 history = load_search_history(supabase_client)
                 if history:
                     for item in history[:5]:
                         with st.expander(f"🕐 {item['created_at'][:10]}"):
-                            st.write("**Ingredients:**")
-                            st.write(item['ingredients_detected'][:200] + "...")
+                            st.write(item['ingredients_detected'][:150] + "...")
                 else:
-                    st.info("No search history yet!")
+                    st.info("No history yet!")
         else:
-            st.info("💡 Configure Supabase to save your search history!")
-    
-    # Main content area
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.header("📸 Upload or Take a Photo")
+            st.info("Configure Supabase to save history")
         
-        uploaded_file = st.file_uploader(
-            "Upload a photo of your fridge, pantry, or ingredients",
-            type=["jpg", "jpeg", "png", "webp"],
-            help="Supported formats: JPG, PNG, WebP"
-        )
-        
-        st.markdown("<div style='text-align:center;'>or</div>", unsafe_allow_html=True)
-        
-        camera_image = camera_input("Take a picture with your camera")
-        
-        image_source = uploaded_file or camera_image
-        
-        if image_source:
-            st.image(image_source, caption="Your ingredients", use_container_width=True)
-            # Process button
-            if st.button("🔍 Identify Ingredients & Get Recipes", type="primary", use_container_width=True):
-                with st.spinner("🔍 Analyzing your ingredients..."):
-                    image_data = encode_image(image_source)
-                    media_type = get_image_media_type(image_source)
-                    ingredients_result = identify_ingredients(anthropic_client, image_data, media_type)
-                    st.session_state['ingredients'] = ingredients_result['raw_response']
-                with st.spinner("👨‍🍳 Generating recipe suggestions..."):
-                    recipes = suggest_recipes(
-                        anthropic_client,
-                        st.session_state['ingredients'],
-                        dietary_preferences,
-                        cuisine_preference
-                    )
-                    st.session_state['recipes'] = recipes
-                if supabase_client:
-                    save_to_supabase(
-                        supabase_client,
-                        st.session_state['ingredients'],
-                        st.session_state['recipes']
-                    )
-                st.success("✅ Analysis complete!")
-    
-    with col2:
-        st.header("🥗 Detected Ingredients")
-        
-        if 'ingredients' in st.session_state:
-            st.markdown(st.session_state['ingredients'])
-        else:
-            st.info("Upload an image and click 'Identify Ingredients' to see results here.")
-    
-    # Recipe suggestions section
-    st.divider()
-    st.header("👨‍🍳 Recipe Suggestions")
-    
-    if 'recipes' in st.session_state:
-        st.markdown(st.session_state['recipes'])
-        
-        # Download button for recipes
-        st.download_button(
-            label="📥 Download Recipes",
-            data=st.session_state['recipes'],
-            file_name="my_recipes.txt",
-            mime="text/plain"
-        )
-    else:
-        st.info("Your personalized recipe suggestions will appear here after analysis.")
+        st.divider()
+        st.markdown("""
+        <div style='font-size: 0.8rem; color: #888;'>
+        <strong>Tips:</strong><br>
+        • Good lighting helps!<br>
+        • Show labels clearly<br>
+        • Include all ingredients
+        </div>
+        """, unsafe_allow_html=True)
     
     # Footer
     st.divider()
     st.markdown("""
-    <div style='text-align: center; color: #888; padding: 1rem;'>
-        <p>Made with ❤️ using Streamlit, Claude AI, and Supabase</p>
-        <p style='font-size: 0.8rem;'>Tip: For best results, ensure good lighting and clearly visible ingredients!</p>
+    <div class="footer">
+        Made with ❤️ using Streamlit & Claude AI<br>
+        <small>Tip: Good lighting = better results!</small>
     </div>
     """, unsafe_allow_html=True)
 
