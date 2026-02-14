@@ -39,6 +39,8 @@ TRANSLATIONS = {
         "camera_help": "Point at your fridge or ingredients",
         "upload_help": "Choose an image",
         "your_ingredients": "Your ingredients",
+        "photos_count": "📷 {count} photo(s) selected",
+        "clear_photos": "🗑️ Clear All",
         "find_recipes": "🔍 Find Recipes",
         "analyzing": "🔍 Analyzing your ingredients...",
         "creating_recipes": "👨‍🍳 Creating recipe suggestions...",
@@ -113,6 +115,8 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "camera_help": "Visez votre frigo ou vos ingrédients",
         "upload_help": "Choisir une image",
         "your_ingredients": "Vos ingrédients",
+        "photos_count": "📷 {count} photo(s) sélectionnée(s)",
+        "clear_photos": "🗑️ Tout Effacer",
         "find_recipes": "🔍 Trouver des Recettes",
         "analyzing": "🔍 Analyse de vos ingrédients...",
         "creating_recipes": "👨‍🍳 Création des suggestions de recettes...",
@@ -187,6 +191,8 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "camera_help": "Skieruj na lodówkę lub składniki",
         "upload_help": "Wybierz obraz",
         "your_ingredients": "Twoje składniki",
+        "photos_count": "📷 Wybrano {count} zdjęć",
+        "clear_photos": "🗑️ Wyczyść Wszystko",
         "find_recipes": "🔍 Znajdź Przepisy",
         "analyzing": "🔍 Analizowanie składników...",
         "creating_recipes": "👨‍🍳 Tworzenie propozycji przepisów...",
@@ -615,51 +621,83 @@ def main():
     
     tab_camera, tab_upload = st.tabs([get_text("take_photo"), get_text("upload_image")])
     
-    image_source = None
+    # Initialize images list in session state
+    if 'images' not in st.session_state:
+        st.session_state.images = []
     
     with tab_camera:
         camera_image = st.camera_input(
             get_text("camera_help"),
             label_visibility="collapsed",
-            help=get_text("camera_help")
+            help=get_text("camera_help"),
+            key="camera"
         )
         if camera_image:
-            image_source = camera_image
+            # Add to images list if not already there
+            if camera_image not in st.session_state.images:
+                st.session_state.images.append(camera_image)
     
     with tab_upload:
-        uploaded_image = st.file_uploader(
+        uploaded_images = st.file_uploader(
             get_text("upload_help"),
             type=["jpg", "jpeg", "png", "webp"],
             label_visibility="collapsed",
-            help="JPG, PNG, WebP"
+            help="JPG, PNG, WebP",
+            accept_multiple_files=True
         )
-        if uploaded_image:
-            image_source = uploaded_image
+        if uploaded_images:
+            for img in uploaded_images:
+                if img not in st.session_state.images:
+                    st.session_state.images.append(img)
     
-    # Process image if available
-    if image_source:
-        # Show preview
-        st.image(image_source, caption=get_text("your_ingredients"), use_container_width=True)
+    # Display all collected images
+    if st.session_state.images:
+        st.markdown(f"**{get_text('photos_count').format(count=len(st.session_state.images))}**")
+        
+        # Show images in a grid
+        cols = st.columns(min(len(st.session_state.images), 3))
+        for idx, img in enumerate(st.session_state.images):
+            with cols[idx % 3]:
+                st.image(img, use_container_width=True)
+        
+        # Clear images button
+        col_clear, col_analyze = st.columns(2)
+        with col_clear:
+            if st.button(get_text("clear_photos"), use_container_width=True):
+                st.session_state.images = []
+                st.rerun()
+        
+        with col_analyze:
+            analyze_clicked = st.button(get_text("find_recipes"), type="primary", use_container_width=True)
         
         # Analyze button
-        if st.button(get_text("find_recipes"), type="primary", use_container_width=True):
+        if analyze_clicked:
             
             # Progress indicator
             progress_text = st.empty()
             progress_bar = st.progress(0)
             
             try:
-                progress_text.text(get_text("analyzing"))
-                progress_bar.progress(25)
-                
-                # Encode image
-                image_data = encode_image(image_source)
-                media_type = get_image_media_type(image_source)
-                
-                # Identify ingredients
                 lang = st.session_state.language
-                ingredients_result = identify_ingredients(anthropic_client, image_data, media_type, lang)
-                st.session_state['ingredients'] = ingredients_result['raw_response']
+                all_ingredients = []
+                total_images = len(st.session_state.images)
+                
+                # Analyze each image
+                for idx, img in enumerate(st.session_state.images):
+                    progress_text.text(f"{get_text('analyzing')} ({idx + 1}/{total_images})")
+                    progress_bar.progress(int((idx + 1) / total_images * 50))
+                    
+                    # Encode image
+                    image_data = encode_image(img)
+                    media_type = get_image_media_type(img)
+                    
+                    # Identify ingredients
+                    ingredients_result = identify_ingredients(anthropic_client, image_data, media_type, lang)
+                    all_ingredients.append(ingredients_result['raw_response'])
+                
+                # Combine all ingredients
+                combined_ingredients = "\n\n---\n\n".join([f"Photo {i+1}:\n{ing}" for i, ing in enumerate(all_ingredients)])
+                st.session_state['ingredients'] = combined_ingredients
                 
                 progress_text.text(get_text("creating_recipes"))
                 progress_bar.progress(60)
