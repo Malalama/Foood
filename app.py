@@ -7,6 +7,7 @@ import streamlit as st
 import anthropic
 import base64
 import time
+import json
 from datetime import datetime
 from supabase import create_client, Client
 import os
@@ -319,6 +320,49 @@ def get_recipe_emojis(recipe_name: str) -> str:
         return unique_emojis[0] + '🍽️'
     else:
         return ''.join(unique_emojis[:4])
+
+
+def format_recipe_for_display(recipe: dict, index: int, lang: str) -> str:
+    """Format a single recipe for markdown display."""
+    labels = {
+        "en": {"difficulty": "Difficulty", "time": "Time", "ingredients": "Ingredients", 
+               "missing": "Missing", "instructions": "Instructions", "tip": "Pro tip"},
+        "fr": {"difficulty": "Difficulté", "time": "Temps", "ingredients": "Ingrédients",
+               "missing": "Manquants", "instructions": "Instructions", "tip": "Astuce"},
+        "pl": {"difficulty": "Trudność", "time": "Czas", "ingredients": "Składniki",
+               "missing": "Brakujące", "instructions": "Instrukcje", "tip": "Wskazówka"}
+    }
+    l = labels.get(lang, labels["en"])
+    
+    emojis = get_recipe_emojis(recipe.get("name", ""))
+    
+    md = f"### {index}. {emojis} {recipe.get('name', 'Recipe')}\n\n"
+    md += f"**{l['difficulty']}:** {recipe.get('difficulty', 'N/A')} | "
+    md += f"**{l['time']}:** {recipe.get('time', 'N/A')}\n\n"
+    
+    # Ingredients
+    md += f"**{l['ingredients']}:**\n"
+    for ing in recipe.get("ingredients", []):
+        md += f"- {get_ingredient_emoji(ing)} {ing}\n"
+    
+    # Missing ingredients
+    missing = recipe.get("missing_ingredients", [])
+    if missing:
+        md += f"\n**⚠️ {l['missing']}:**\n"
+        for ing in missing:
+            md += f"- {get_ingredient_emoji(ing)} {ing}\n"
+    
+    # Instructions
+    md += f"\n**{l['instructions']}:**\n"
+    for i, step in enumerate(recipe.get("instructions", []), 1):
+        md += f"{i}. {step}\n"
+    
+    # Tip
+    tip = recipe.get("tip", "")
+    if tip:
+        md += f"\n💡 **{l['tip']}:** {tip}\n"
+    
+    return md
 
 
 
@@ -856,8 +900,8 @@ def identify_ingredients(client, image_data: str, media_type: str, lang: str = "
             raise Exception(f"Unexpected error: {str(e)}")
 
 
-def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en") -> str:
-    """Use Claude to suggest recipes based on identified ingredients with retry logic."""
+def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en") -> dict:
+    """Use Claude to suggest recipes based on identified ingredients with retry logic. Returns structured data."""
     
     preferences_text = ""
     if dietary_preferences:
@@ -868,14 +912,49 @@ def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, 
     max_retries = 3
     retry_delay = 2
     
-    prompt_template = TRANSLATIONS[lang]["recipes_prompt"]
-    prompt = prompt_template.format(ingredients=ingredients, preferences=preferences_text)
+    # Language-specific instructions
+    lang_instructions = {
+        "en": "Respond in English.",
+        "fr": "Réponds en français.",
+        "pl": "Odpowiedz po polsku."
+    }
     
+    prompt = f"""Based on these available ingredients:
+
+{ingredients}
+{preferences_text}
+
+Suggest 3 recipes that can be made primarily with these ingredients.
+
+{lang_instructions.get(lang, lang_instructions["en"])}
+
+IMPORTANT: Return your response as a valid JSON object with this exact structure:
+{{
+    "recipes": [
+        {{
+            "name": "Recipe Name Here",
+            "difficulty": "Easy/Medium/Hard",
+            "time": "30 minutes",
+            "ingredients": ["ingredient 1", "ingredient 2"],
+            "missing_ingredients": ["ingredient that is NOT in the available list"],
+            "instructions": ["Step 1 description", "Step 2 description", "Step 3 description"],
+            "tip": "Pro tip for this dish"
+        }}
+    ]
+}}
+
+Make sure to:
+- Include exactly 3 recipes
+- List 5-7 instruction steps per recipe
+- Mark any ingredients NOT in the available list in "missing_ingredients"
+- Keep recipe names short and descriptive (max 6 words)
+- Return ONLY the JSON, no other text before or after"""
+
     for attempt in range(max_retries):
         try:
             message = client.messages.create(
                 model="claude-sonnet-4-5-20250929",
-                max_tokens=2048,
+                max_tokens=3000,
                 messages=[
                     {
                         "role": "user",
@@ -883,7 +962,29 @@ def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, 
                     }
                 ],
             )
-            return message.content[0].text
+            
+            response_text = message.content[0].text
+            
+            # Try to parse JSON from response
+
+            
+            # Clean up response if needed (remove markdown code blocks if present)
+            cleaned = response_text.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+            
+            # Parse JSON
+            recipes_data = json.loads(cleaned)
+            return recipes_data
+        
+        except json.JSONDecodeError as e:
+            # If JSON parsing fails, return raw text as fallback
+            return {"raw_text": response_text, "parse_error": str(e)}
         
         except anthropic.APIStatusError as e:
             if e.status_code in [529, 503]:
@@ -903,22 +1004,49 @@ def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, 
             else:
                 raise Exception("Could not connect to AI service. Please check your internet connection.")
         except Exception as e:
+            if "JSON" in str(e) or "json" in str(e):
+                raise Exception(f"Failed to parse recipe data: {str(e)}")
             raise Exception(f"Unexpected error: {str(e)}")
 
 
-def save_to_supabase(supabase: Client, ingredients: str, recipes: str):
+def save_to_supabase(supabase: Client, ingredients: str, recipes_data):
     """Save the search to Supabase for history."""
+
     try:
+        # Handle both structured and raw data
+        if isinstance(recipes_data, dict) and "recipes" in recipes_data:
+            # Extract recipe names for easy display in history
+            recipe_names = [r.get("name", "Unknown") for r in recipes_data.get("recipes", [])]
+            recipes_json = json.dumps(recipes_data, ensure_ascii=False)
+            recipes_text = ", ".join(recipe_names)
+        elif isinstance(recipes_data, dict) and "raw_text" in recipes_data:
+            recipes_json = json.dumps(recipes_data, ensure_ascii=False)
+            recipes_text = recipes_data.get("raw_text", "")[:500]
+        else:
+            recipes_json = None
+            recipes_text = str(recipes_data)
+        
         data = {
             "ingredients_detected": ingredients,
-            "recipes_suggested": recipes,
+            "recipes_suggested": recipes_text,
+            "recipes_json": recipes_json,
             "created_at": datetime.now().isoformat()
         }
         supabase.table("recipe_searches").insert(data).execute()
         return True
     except Exception as e:
-        st.error(f"Failed to save to database: {e}")
-        return False
+        # If recipes_json column doesn't exist, try without it
+        try:
+            data = {
+                "ingredients_detected": ingredients,
+                "recipes_suggested": recipes_text if 'recipes_text' in dir() else str(recipes_data),
+                "created_at": datetime.now().isoformat()
+            }
+            supabase.table("recipe_searches").insert(data).execute()
+            return True
+        except Exception as e2:
+            st.error(f"Failed to save to database: {e2}")
+            return False
 
 
 def load_search_history(supabase: Client, limit: int = 10):
@@ -1204,32 +1332,54 @@ def main():
         # Recipe suggestions header
         st.markdown(get_text("your_recipes"))
         
-        # Parse recipe names and display with big emojis
-        recipe_names = parse_recipe_names(st.session_state['recipes'])
+        recipes_data = st.session_state['recipes']
+        lang = st.session_state.language
         
-        if recipe_names:
-            # Display recipe cards with emojis
-            cols = st.columns(len(recipe_names))
-            for idx, name in enumerate(recipe_names):
-                with cols[idx]:
-                    emojis = get_recipe_emojis(name)
-                    st.markdown(f"""
-                    <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #667eea22, #764ba222); border-radius: 15px; margin-bottom: 1rem; min-height: 140px; display: flex; flex-direction: column; justify-content: center;'>
-                        <div style='font-size: 2.5rem; margin-bottom: 0.5rem;'>{emojis}</div>
-                        <div style='font-size: 0.85rem; font-weight: 600; line-height: 1.3;'>{name}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+        # Check if we have structured data or raw text
+        if isinstance(recipes_data, dict) and "recipes" in recipes_data:
+            # Structured JSON data
+            recipe_list = recipes_data["recipes"]
+            
+            # Display recipe cards with emojis and names
+            if recipe_list:
+                cols = st.columns(len(recipe_list))
+                for idx, recipe in enumerate(recipe_list):
+                    with cols[idx]:
+                        name = recipe.get("name", f"Recipe {idx + 1}")
+                        emojis = get_recipe_emojis(name)
+                        st.markdown(f"""
+                        <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #667eea22, #764ba222); border-radius: 15px; margin-bottom: 1rem; min-height: 140px; display: flex; flex-direction: column; justify-content: center;'>
+                            <div style='font-size: 2.5rem; margin-bottom: 0.5rem;'>{emojis}</div>
+                            <div style='font-size: 0.85rem; font-weight: 600; line-height: 1.3;'>{name}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                # Full recipe details
+                st.markdown("---")
+                for idx, recipe in enumerate(recipe_list, 1):
+                    st.markdown(format_recipe_for_display(recipe, idx, lang))
+                    st.markdown("---")
+                
+                # Prepare download content
+                download_content = "\n\n".join([format_recipe_for_display(r, i, lang) for i, r in enumerate(recipe_list, 1)])
         
-        # Full recipe details
-        st.markdown("---")
-        st.markdown(st.session_state['recipes'])
+        elif isinstance(recipes_data, dict) and "raw_text" in recipes_data:
+            # Fallback: raw text (JSON parsing failed)
+            st.warning("⚠️ Recipe formatting limited")
+            st.markdown(recipes_data["raw_text"])
+            download_content = recipes_data["raw_text"]
+        
+        else:
+            # Legacy: plain text
+            st.markdown(recipes_data)
+            download_content = recipes_data
         
         # Download and New Search buttons
         col_download, col_new = st.columns(2)
         with col_download:
             st.download_button(
                 label=get_text("save_recipes"),
-                data=st.session_state['recipes'],
+                data=download_content,
                 file_name="my_recipes.txt",
                 mime="text/plain",
                 use_container_width=True
@@ -1241,7 +1391,6 @@ def main():
                 st.session_state.pop('ingredients_list', None)
                 st.session_state.pop('ingredients', None)
                 st.session_state.pop('recipes', None)
-                st.rerun()
                 st.rerun()
     
     # Sidebar for history (optional)
