@@ -25,7 +25,7 @@ def get_secret(key: str, default=None):
     return os.getenv(key, default)
 
 
-def search_unsplash_photo(query: str) -> dict:
+def search_unsplash_photo(recipe_name: str) -> dict:
     """Search for a food photo on Unsplash."""
     access_key = get_secret("UNSPLASH_ACCESS_KEY")
     
@@ -33,8 +33,9 @@ def search_unsplash_photo(query: str) -> dict:
         return None
     
     try:
-        # Add "food" to improve results
-        search_query = f"{query} food dish"
+        # Simplify the recipe name to main dish element
+        simple_dish = simplify_dish_for_search(recipe_name)
+        search_query = f"{simple_dish} food"
         
         response = requests.get(
             "https://api.unsplash.com/search/photos",
@@ -72,22 +73,55 @@ def parse_recipe_names(recipes_text: str) -> list:
     
     for line in lines:
         line = line.strip()
-        # Look for lines that start with number and contain ** (markdown bold)
-        if line and (line.startswith('1.') or line.startswith('2.') or line.startswith('3.')):
-            # Extract the recipe name between ** **
-            if '**' in line:
-                parts = line.split('**')
-                if len(parts) >= 2:
-                    name = parts[1].strip()
-                    # Remove emoji at the start if present
-                    recipe_names.append(name)
-            else:
-                # Fallback: just take the text after the number
-                name = line[2:].strip().lstrip('.*- ')
-                if name:
-                    recipe_names.append(name)
+        # Look for lines that start with "1.", "2.", "3." and contain ** (markdown bold)
+        if line and len(line) > 3:
+            # Check if line starts with a number followed by . 
+            if line[0].isdigit() and '.' in line[:3]:
+                # Extract the recipe name between ** **
+                if '**' in line:
+                    parts = line.split('**')
+                    if len(parts) >= 2:
+                        name = parts[1].strip()
+                        # Remove leading emoji if present
+                        if name and ord(name[0]) > 127:
+                            name = name[1:].strip()
+                        if name:
+                            recipe_names.append(name)
     
     return recipe_names[:3]  # Max 3 recipes
+
+
+def simplify_dish_for_search(recipe_name: str) -> str:
+    """Extract the main dish element for better Unsplash search results."""
+    # Remove common descriptive words that don't help image search
+    skip_words = [
+        'lemon', 'herb', 'herbed', 'roasted', 'grilled', 'baked', 'fried', 
+        'sauteed', 'sautéed', 'steamed', 'fresh', 'homemade', 'classic',
+        'simple', 'easy', 'quick', 'delicious', 'creamy', 'crispy', 'spicy',
+        'garlic', 'butter', 'honey', 'maple', 'with', 'and', 'style', 'à', 'au', 'aux',
+        'citron', 'herbes', 'rôti', 'grillé', 'cuit', 'frit', 'vapeur', 'frais', 'maison',
+        'simple', 'facile', 'rapide', 'délicieux', 'crémeux', 'croustillant', 'épicé',
+        'ail', 'beurre', 'miel', 'érable', 'avec', 'et',
+        'cytrynowy', 'ziołowy', 'pieczony', 'grillowany', 'smażony', 'domowy',
+        'prosty', 'łatwy', 'szybki', 'pyszny', 'kremowy', 'chrupiący', 'pikantny',
+        'z', 'i', 'w'
+    ]
+    
+    # Clean up the recipe name
+    name_lower = recipe_name.lower()
+    words = name_lower.replace('-', ' ').replace('_', ' ').split()
+    
+    # Keep only meaningful words (main ingredients)
+    main_words = [w for w in words if w not in skip_words and len(w) > 2]
+    
+    # Take first 2-3 meaningful words max
+    result = ' '.join(main_words[:3])
+    
+    # Fallback to original if we filtered too much
+    if len(result) < 3:
+        return recipe_name
+    
+    return result
 
 
 # Translations
