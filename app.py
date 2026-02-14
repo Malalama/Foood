@@ -41,7 +41,14 @@ TRANSLATIONS = {
         "your_ingredients": "Your ingredients",
         "photos_count": "📷 {count} photo(s) selected",
         "clear_photos": "🗑️ Clear All",
-        "find_recipes": "🔍 Find Recipes",
+        "detect_ingredients": "🔍 Detect Ingredients",
+        "find_recipes": "🍳 Find Recipes",
+        "edit_ingredients": "✏️ Edit Ingredients",
+        "edit_ingredients_help": "Remove or add ingredients before searching for recipes",
+        "ingredients_detected_title": "### 🥗 Detected Ingredients",
+        "validate_ingredients": "✅ Confirm & Find Recipes",
+        "redetect": "🔄 Re-detect",
+        "new_search": "🔄 New Search",
         "analyzing": "🔍 Analyzing your ingredients...",
         "creating_recipes": "👨‍🍳 Creating recipe suggestions...",
         "done": "✅ Done!",
@@ -117,7 +124,14 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "your_ingredients": "Vos ingrédients",
         "photos_count": "📷 {count} photo(s) sélectionnée(s)",
         "clear_photos": "🗑️ Tout Effacer",
-        "find_recipes": "🔍 Trouver des Recettes",
+        "detect_ingredients": "🔍 Détecter les Ingrédients",
+        "find_recipes": "🍳 Trouver des Recettes",
+        "edit_ingredients": "✏️ Modifier les Ingrédients",
+        "edit_ingredients_help": "Supprimez ou ajoutez des ingrédients avant de chercher des recettes",
+        "ingredients_detected_title": "### 🥗 Ingrédients Détectés",
+        "validate_ingredients": "✅ Confirmer & Trouver des Recettes",
+        "redetect": "🔄 Re-détecter",
+        "new_search": "🔄 Nouvelle Recherche",
         "analyzing": "🔍 Analyse de vos ingrédients...",
         "creating_recipes": "👨‍🍳 Création des suggestions de recettes...",
         "done": "✅ Terminé !",
@@ -193,7 +207,14 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "your_ingredients": "Twoje składniki",
         "photos_count": "📷 Wybrano {count} zdjęć",
         "clear_photos": "🗑️ Wyczyść Wszystko",
-        "find_recipes": "🔍 Znajdź Przepisy",
+        "detect_ingredients": "🔍 Wykryj Składniki",
+        "find_recipes": "🍳 Znajdź Przepisy",
+        "edit_ingredients": "✏️ Edytuj Składniki",
+        "edit_ingredients_help": "Usuń lub dodaj składniki przed wyszukaniem przepisów",
+        "ingredients_detected_title": "### 🥗 Wykryte Składniki",
+        "validate_ingredients": "✅ Potwierdź i Znajdź Przepisy",
+        "redetect": "🔄 Wykryj Ponownie",
+        "new_search": "🔄 Nowe Wyszukiwanie",
         "analyzing": "🔍 Analizowanie składników...",
         "creating_recipes": "👨‍🍳 Tworzenie propozycji przepisów...",
         "done": "✅ Gotowe!",
@@ -660,20 +681,21 @@ def main():
             with cols[idx % 3]:
                 st.image(img, use_container_width=True)
         
-        # Clear images button
-        col_clear, col_analyze = st.columns(2)
+        # Clear images button and detect button
+        col_clear, col_detect = st.columns(2)
         with col_clear:
             if st.button(get_text("clear_photos"), use_container_width=True):
                 st.session_state.images = []
+                st.session_state.pop('detected_ingredients', None)
+                st.session_state.pop('ingredients', None)
+                st.session_state.pop('recipes', None)
                 st.rerun()
         
-        with col_analyze:
-            analyze_clicked = st.button(get_text("find_recipes"), type="primary", use_container_width=True)
+        with col_detect:
+            detect_clicked = st.button(get_text("detect_ingredients"), type="primary", use_container_width=True)
         
-        # Analyze button
-        if analyze_clicked:
-            
-            # Progress indicator
+        # Step 1: Detect ingredients
+        if detect_clicked:
             progress_text = st.empty()
             progress_bar = st.progress(0)
             
@@ -685,7 +707,7 @@ def main():
                 # Analyze each image
                 for idx, img in enumerate(st.session_state.images):
                     progress_text.text(f"{get_text('analyzing')} ({idx + 1}/{total_images})")
-                    progress_bar.progress(int((idx + 1) / total_images * 50))
+                    progress_bar.progress(int((idx + 1) / total_images * 100))
                     
                     # Encode image
                     image_data = encode_image(img)
@@ -696,41 +718,15 @@ def main():
                     all_ingredients.append(ingredients_result['raw_response'])
                 
                 # Combine all ingredients
-                combined_ingredients = "\n\n---\n\n".join([f"Photo {i+1}:\n{ing}" for i, ing in enumerate(all_ingredients)])
-                st.session_state['ingredients'] = combined_ingredients
-                
-                progress_text.text(get_text("creating_recipes"))
-                progress_bar.progress(60)
-                
-                # Get recipe suggestions
-                recipes = suggest_recipes(
-                    anthropic_client,
-                    st.session_state['ingredients'],
-                    dietary_preferences,
-                    cuisine_preference,
-                    lang
-                )
-                st.session_state['recipes'] = recipes
-                
-                progress_bar.progress(90)
-                
-                # Save to Supabase if configured
-                if supabase_client:
-                    save_to_supabase(
-                        supabase_client,
-                        st.session_state['ingredients'],
-                        st.session_state['recipes']
-                    )
+                combined_ingredients = "\n\n".join(all_ingredients)
+                st.session_state['detected_ingredients'] = combined_ingredients
                 
                 progress_bar.progress(100)
                 progress_text.text(get_text("done"))
-                
-                # Clear progress after a moment
                 time.sleep(0.5)
                 progress_bar.empty()
                 progress_text.empty()
-                
-                st.success(get_text("recipes_ready"))
+                st.rerun()
                 
             except Exception as e:
                 progress_bar.empty()
@@ -738,8 +734,77 @@ def main():
                 st.error(f"⚠️ {str(e)}")
                 st.info(get_text("error_tip"))
     
+    # Step 2: Show editable ingredients
+    if 'detected_ingredients' in st.session_state and 'recipes' not in st.session_state:
+        st.divider()
+        st.markdown(get_text("ingredients_detected_title"))
+        st.caption(get_text("edit_ingredients_help"))
+        
+        # Editable text area with detected ingredients
+        edited_ingredients = st.text_area(
+            get_text("edit_ingredients"),
+            value=st.session_state['detected_ingredients'],
+            height=300,
+            label_visibility="collapsed"
+        )
+        
+        # Buttons for re-detect and confirm
+        col_redetect, col_confirm = st.columns(2)
+        
+        with col_redetect:
+            if st.button(get_text("redetect"), use_container_width=True):
+                st.session_state.pop('detected_ingredients', None)
+                st.rerun()
+        
+        with col_confirm:
+            if st.button(get_text("validate_ingredients"), type="primary", use_container_width=True):
+                # Save edited ingredients and search for recipes
+                st.session_state['ingredients'] = edited_ingredients
+                
+                progress_text = st.empty()
+                progress_bar = st.progress(0)
+                
+                try:
+                    progress_text.text(get_text("creating_recipes"))
+                    progress_bar.progress(30)
+                    
+                    lang = st.session_state.language
+                    recipes = suggest_recipes(
+                        anthropic_client,
+                        edited_ingredients,
+                        dietary_preferences,
+                        cuisine_preference,
+                        lang
+                    )
+                    st.session_state['recipes'] = recipes
+                    
+                    progress_bar.progress(90)
+                    
+                    # Save to Supabase if configured
+                    if supabase_client:
+                        save_to_supabase(
+                            supabase_client,
+                            edited_ingredients,
+                            recipes
+                        )
+                    
+                    progress_bar.progress(100)
+                    progress_text.text(get_text("done"))
+                    time.sleep(0.5)
+                    progress_bar.empty()
+                    progress_text.empty()
+                    
+                    st.success(get_text("recipes_ready"))
+                    st.rerun()
+                    
+                except Exception as e:
+                    progress_bar.empty()
+                    progress_text.empty()
+                    st.error(f"⚠️ {str(e)}")
+                    st.info(get_text("error_tip"))
+    
     # Results section
-    if 'ingredients' in st.session_state or 'recipes' in st.session_state:
+    if 'recipes' in st.session_state:
         st.divider()
         
         # Ingredients found
@@ -748,11 +813,12 @@ def main():
                 st.markdown(st.session_state['ingredients'])
         
         # Recipe suggestions
-        if 'recipes' in st.session_state:
-            st.markdown(get_text("your_recipes"))
-            st.markdown(st.session_state['recipes'])
-            
-            # Download button
+        st.markdown(get_text("your_recipes"))
+        st.markdown(st.session_state['recipes'])
+        
+        # Download and New Search buttons
+        col_download, col_new = st.columns(2)
+        with col_download:
             st.download_button(
                 label=get_text("save_recipes"),
                 data=st.session_state['recipes'],
@@ -760,6 +826,13 @@ def main():
                 mime="text/plain",
                 use_container_width=True
             )
+        with col_new:
+            if st.button(get_text("new_search"), use_container_width=True):
+                st.session_state.images = []
+                st.session_state.pop('detected_ingredients', None)
+                st.session_state.pop('ingredients', None)
+                st.session_state.pop('recipes', None)
+                st.rerun()
     
     # Sidebar for history (optional)
     with st.sidebar:
