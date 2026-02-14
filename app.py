@@ -175,62 +175,6 @@ def get_ingredient_emoji(ingredient: str) -> str:
     return '🍴'
 
 
-def get_recipe_emoji(recipe_name: str) -> str:
-    """Get an emoji for a recipe based on main ingredients."""
-    recipe_lower = recipe_name.lower()
-    
-    # Recipe type mappings
-    if any(word in recipe_lower for word in ['salad', 'salade', 'sałatka']):
-        return '🥗'
-    if any(word in recipe_lower for word in ['soup', 'soupe', 'zupa']):
-        return '🍲'
-    if any(word in recipe_lower for word in ['pasta', 'spaghetti', 'pâtes', 'makaron', 'noodle']):
-        return '🍝'
-    if any(word in recipe_lower for word in ['pizza']):
-        return '🍕'
-    if any(word in recipe_lower for word in ['burger', 'hamburger']):
-        return '🍔'
-    if any(word in recipe_lower for word in ['sandwich', 'panini']):
-        return '🥪'
-    if any(word in recipe_lower for word in ['taco', 'burrito', 'mexican', 'mexicain']):
-        return '🌮'
-    if any(word in recipe_lower for word in ['sushi', 'maki']):
-        return '🍣'
-    if any(word in recipe_lower for word in ['curry']):
-        return '🍛'
-    if any(word in recipe_lower for word in ['steak', 'beef', 'boeuf', 'bœuf', 'wołowina']):
-        return '🥩'
-    if any(word in recipe_lower for word in ['chicken', 'poulet', 'kurczak']):
-        return '🍗'
-    if any(word in recipe_lower for word in ['fish', 'poisson', 'ryba', 'salmon', 'saumon']):
-        return '🐟'
-    if any(word in recipe_lower for word in ['shrimp', 'crevette', 'krewetk', 'seafood']):
-        return '🦐'
-    if any(word in recipe_lower for word in ['egg', 'oeuf', 'œuf', 'jajko', 'omelette', 'omlet']):
-        return '🍳'
-    if any(word in recipe_lower for word in ['rice', 'riz', 'ryż']):
-        return '🍚'
-    if any(word in recipe_lower for word in ['cake', 'gâteau', 'ciasto', 'dessert']):
-        return '🍰'
-    if any(word in recipe_lower for word in ['pancake', 'crêpe', 'naleśnik', 'waffle', 'gaufre']):
-        return '🥞'
-    if any(word in recipe_lower for word in ['bread', 'pain', 'chleb', 'toast']):
-        return '🍞'
-    if any(word in recipe_lower for word in ['pie', 'tarte', 'quiche']):
-        return '🥧'
-    if any(word in recipe_lower for word in ['stir fry', 'wok', 'sauté']):
-        return '🥘'
-    if any(word in recipe_lower for word in ['roast', 'rôti', 'pieczony', 'baked']):
-        return '🍖'
-    if any(word in recipe_lower for word in ['grill', 'bbq', 'barbecue']):
-        return '🔥'
-    if any(word in recipe_lower for word in ['vegetable', 'légume', 'warzywo', 'veggie', 'vegan']):
-        return '🥬'
-    if any(word in recipe_lower for word in ['fruit', 'smoothie']):
-        return '🍓'
-    
-    # Default
-    return '🍽️'
 
 
 def parse_recipe_names(recipes_text: str) -> list:
@@ -240,7 +184,7 @@ def parse_recipe_names(recipes_text: str) -> list:
     
     for line in lines:
         line = line.strip()
-        # Look for lines that start with "1.", "2.", "3."
+        # Look for lines that start with "1.", "2.", "3." 
         if line and len(line) > 3:
             # Check if line starts with a number followed by . 
             if line[0].isdigit() and '.' in line[:3]:
@@ -262,10 +206,119 @@ def parse_recipe_names(recipes_text: str) -> list:
                     if stop_marker in name:
                         name = name.split(stop_marker)[0].strip()
                 
-                if name and len(name) > 2:
+                # Filter out non-recipe lines (instructions, etc.)
+                # Recipe names are typically shorter and don't contain certain patterns
+                skip_patterns = ['cook', 'boil', 'slice', 'dice', 'chop', 'mix', 'stir', 
+                                'bake', 'fry', 'heat', 'add', 'pour', 'season', 'place',
+                                'cuire', 'couper', 'mélanger', 'ajouter', 'verser',
+                                'gotować', 'kroić', 'mieszać', 'dodać',
+                                'minutes', 'mins', 'until', 'then']
+                
+                name_lower = name.lower()
+                is_instruction = any(pattern in name_lower for pattern in skip_patterns)
+                
+                if name and len(name) > 2 and len(name) < 80 and not is_instruction:
                     recipe_names.append(name)
     
     return recipe_names[:3]  # Max 3 recipes
+
+
+def get_recipe_emojis(recipe_name: str) -> str:
+    """Get 2-4 emojis for a recipe based on ingredients and cooking style."""
+    recipe_lower = recipe_name.lower()
+    emojis = []
+    
+    # Main protein/ingredient
+    if any(word in recipe_lower for word in ['chicken', 'poulet', 'kurczak']):
+        emojis.append('🍗')
+    if any(word in recipe_lower for word in ['beef', 'boeuf', 'bœuf', 'steak', 'wołowina']):
+        emojis.append('🥩')
+    if any(word in recipe_lower for word in ['pork', 'porc', 'wieprzowina']):
+        emojis.append('🥓')
+    if any(word in recipe_lower for word in ['fish', 'poisson', 'ryba', 'salmon', 'saumon', 'łosoś']):
+        emojis.append('🐟')
+    if any(word in recipe_lower for word in ['shrimp', 'crevette', 'krewetk', 'seafood']):
+        emojis.append('🦐')
+    if any(word in recipe_lower for word in ['egg', 'oeuf', 'œuf', 'jajko', 'omelette', 'omlet']):
+        emojis.append('🍳')
+    
+    # Dish type
+    if any(word in recipe_lower for word in ['salad', 'salade', 'sałatka']):
+        emojis.append('🥗')
+    if any(word in recipe_lower for word in ['soup', 'soupe', 'zupa']):
+        emojis.append('🍲')
+    if any(word in recipe_lower for word in ['pasta', 'spaghetti', 'pâtes', 'makaron', 'noodle', 'primavera']):
+        emojis.append('🍝')
+    if any(word in recipe_lower for word in ['pizza']):
+        emojis.append('🍕')
+    if any(word in recipe_lower for word in ['burger', 'hamburger']):
+        emojis.append('🍔')
+    if any(word in recipe_lower for word in ['sandwich', 'panini']):
+        emojis.append('🥪')
+    if any(word in recipe_lower for word in ['taco', 'burrito', 'mexican', 'mexicain']):
+        emojis.append('🌮')
+    if any(word in recipe_lower for word in ['curry']):
+        emojis.append('🍛')
+    if any(word in recipe_lower for word in ['rice', 'riz', 'ryż', 'risotto']):
+        emojis.append('🍚')
+    if any(word in recipe_lower for word in ['stir fry', 'wok', 'sauté', 'asian', 'asiatique']):
+        emojis.append('🥘')
+    
+    # Vegetables
+    if any(word in recipe_lower for word in ['vegetable', 'légume', 'warzywo', 'veggie', 'primavera']):
+        emojis.append('🥬')
+    if any(word in recipe_lower for word in ['tomato', 'tomate', 'pomidor']):
+        emojis.append('🍅')
+    if any(word in recipe_lower for word in ['pepper', 'poivron', 'papryka']):
+        emojis.append('🫑')
+    if any(word in recipe_lower for word in ['mushroom', 'champignon', 'grzyb']):
+        emojis.append('🍄')
+    if any(word in recipe_lower for word in ['carrot', 'carotte', 'marchew']):
+        emojis.append('🥕')
+    
+    # Flavor profiles
+    if any(word in recipe_lower for word in ['lemon', 'citron', 'cytryn']):
+        emojis.append('🍋')
+    if any(word in recipe_lower for word in ['garlic', 'ail', 'czosnek']):
+        emojis.append('🧄')
+    if any(word in recipe_lower for word in ['cheese', 'fromage', 'ser', 'parmesan']):
+        emojis.append('🧀')
+    if any(word in recipe_lower for word in ['spicy', 'épicé', 'pikantny', 'chili']):
+        emojis.append('🌶️')
+    if any(word in recipe_lower for word in ['herb', 'herbe', 'zioł']):
+        emojis.append('🌿')
+    
+    # Cooking style
+    if any(word in recipe_lower for word in ['grill', 'bbq', 'barbecue']):
+        emojis.append('🔥')
+    if any(word in recipe_lower for word in ['roast', 'rôti', 'pieczony', 'baked']):
+        emojis.append('🍖')
+    if any(word in recipe_lower for word in ['fried', 'frit', 'smażony', 'crispy']):
+        emojis.append('✨')
+    
+    # Desserts
+    if any(word in recipe_lower for word in ['cake', 'gâteau', 'ciasto', 'dessert']):
+        emojis.append('🍰')
+    if any(word in recipe_lower for word in ['chocolate', 'chocolat', 'czekolada']):
+        emojis.append('🍫')
+    if any(word in recipe_lower for word in ['fruit', 'smoothie']):
+        emojis.append('🍓')
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_emojis = []
+    for e in emojis:
+        if e not in seen:
+            seen.add(e)
+            unique_emojis.append(e)
+    
+    # Return 2-4 emojis, or default if none found
+    if len(unique_emojis) == 0:
+        return '🍽️🍴'
+    elif len(unique_emojis) == 1:
+        return unique_emojis[0] + '🍽️'
+    else:
+        return ''.join(unique_emojis[:4])
 
 
 
@@ -1159,11 +1212,11 @@ def main():
             cols = st.columns(len(recipe_names))
             for idx, name in enumerate(recipe_names):
                 with cols[idx]:
-                    emoji = get_recipe_emoji(name)
+                    emojis = get_recipe_emojis(name)
                     st.markdown(f"""
-                    <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #667eea22, #764ba222); border-radius: 15px; margin-bottom: 1rem;'>
-                        <div style='font-size: 3rem;'>{emoji}</div>
-                        <div style='font-size: 0.9rem; font-weight: 600; margin-top: 0.5rem;'>{name}</div>
+                    <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #667eea22, #764ba222); border-radius: 15px; margin-bottom: 1rem; min-height: 140px; display: flex; flex-direction: column; justify-content: center;'>
+                        <div style='font-size: 2.5rem; margin-bottom: 0.5rem;'>{emojis}</div>
+                        <div style='font-size: 0.85rem; font-weight: 600; line-height: 1.3;'>{name}</div>
                     </div>
                     """, unsafe_allow_html=True)
         
