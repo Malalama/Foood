@@ -73,20 +73,30 @@ def parse_recipe_names(recipes_text: str) -> list:
     
     for line in lines:
         line = line.strip()
-        # Look for lines that start with "1.", "2.", "3." and contain ** (markdown bold)
+        # Look for lines that start with "1.", "2.", "3."
         if line and len(line) > 3:
             # Check if line starts with a number followed by . 
             if line[0].isdigit() and '.' in line[:3]:
-                # Extract the recipe name between ** **
-                if '**' in line:
-                    parts = line.split('**')
+                # Extract everything after "1. " or "1."
+                name = line[2:].strip().lstrip('. ')
+                
+                # If there's markdown bold **, extract from between them
+                if '**' in name:
+                    parts = name.split('**')
                     if len(parts) >= 2:
                         name = parts[1].strip()
-                        # Remove leading emoji if present
-                        if name and ord(name[0]) > 127:
-                            name = name[1:].strip()
-                        if name:
-                            recipe_names.append(name)
+                
+                # Remove leading emoji if present (emojis are > 127 in unicode)
+                while name and ord(name[0]) > 127:
+                    name = name[1:].strip()
+                
+                # Stop at line break indicators or sub-sections
+                for stop_marker in [' - ', ' – ', '\n', '**']:
+                    if stop_marker in name:
+                        name = name.split(stop_marker)[0].strip()
+                
+                if name and len(name) > 2:
+                    recipe_names.append(name)
     
     return recipe_names[:3]  # Max 3 recipes
 
