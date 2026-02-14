@@ -7,6 +7,7 @@ import streamlit as st
 import anthropic
 import base64
 import time
+import requests
 from datetime import datetime
 from supabase import create_client, Client
 import os
@@ -22,6 +23,71 @@ def get_secret(key: str, default=None):
     
     # Fall back to environment variables (for local development)
     return os.getenv(key, default)
+
+
+def search_unsplash_photo(query: str) -> dict:
+    """Search for a food photo on Unsplash."""
+    access_key = get_secret("UNSPLASH_ACCESS_KEY")
+    
+    if not access_key:
+        return None
+    
+    try:
+        # Add "food" to improve results
+        search_query = f"{query} food dish"
+        
+        response = requests.get(
+            "https://api.unsplash.com/search/photos",
+            params={
+                "query": search_query,
+                "per_page": 1,
+                "orientation": "landscape"
+            },
+            headers={
+                "Authorization": f"Client-ID {access_key}"
+            },
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data["results"]:
+                photo = data["results"][0]
+                return {
+                    "url": photo["urls"]["regular"],
+                    "thumb": photo["urls"]["small"],
+                    "author": photo["user"]["name"],
+                    "author_url": photo["user"]["links"]["html"]
+                }
+    except Exception as e:
+        pass
+    
+    return None
+
+
+def parse_recipe_names(recipes_text: str) -> list:
+    """Extract recipe names from the generated recipes text."""
+    recipe_names = []
+    lines = recipes_text.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        # Look for lines that start with number and contain ** (markdown bold)
+        if line and (line.startswith('1.') or line.startswith('2.') or line.startswith('3.')):
+            # Extract the recipe name between ** **
+            if '**' in line:
+                parts = line.split('**')
+                if len(parts) >= 2:
+                    name = parts[1].strip()
+                    # Remove emoji at the start if present
+                    recipe_names.append(name)
+            else:
+                # Fallback: just take the text after the number
+                name = line[2:].strip().lstrip('.*- ')
+                if name:
+                    recipe_names.append(name)
+    
+    return recipe_names[:3]  # Max 3 recipes
 
 
 # Translations
@@ -51,6 +117,10 @@ TRANSLATIONS = {
         "new_search": "🔄 New Search",
         "add_ingredient": "Add an ingredient...",
         "add_button": "➕ Add",
+        "photo_by": "Photo by",
+        "photo_on": "on Unsplash",
+        "loading_photo": "Loading photo...",
+        "select_recipe": "Click on a recipe to see the photo",
         "analyzing": "🔍 Analyzing your ingredients...",
         "creating_recipes": "👨‍🍳 Creating recipe suggestions...",
         "done": "✅ Done!",
@@ -125,6 +195,10 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "new_search": "🔄 Nouvelle Recherche",
         "add_ingredient": "Ajouter un ingrédient...",
         "add_button": "➕ Ajouter",
+        "photo_by": "Photo par",
+        "photo_on": "sur Unsplash",
+        "loading_photo": "Chargement de la photo...",
+        "select_recipe": "Cliquez sur une recette pour voir la photo",
         "analyzing": "🔍 Analyse de vos ingrédients...",
         "creating_recipes": "👨‍🍳 Création des suggestions de recettes...",
         "done": "✅ Terminé !",
@@ -199,6 +273,10 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "new_search": "🔄 Nowe Wyszukiwanie",
         "add_ingredient": "Dodaj składnik...",
         "add_button": "➕ Dodaj",
+        "photo_by": "Zdjęcie:",
+        "photo_on": "na Unsplash",
+        "loading_photo": "Ładowanie zdjęcia...",
+        "select_recipe": "Kliknij przepis, aby zobaczyć zdjęcie",
         "analyzing": "🔍 Analizowanie składników...",
         "creating_recipes": "👨‍🍳 Tworzenie propozycji przepisów...",
         "done": "✅ Gotowe!",
@@ -896,8 +974,48 @@ def main():
             with st.expander(get_text("detected_ingredients"), expanded=False):
                 st.markdown(st.session_state['ingredients'])
         
-        # Recipe suggestions
+        # Recipe suggestions header
         st.markdown(get_text("your_recipes"))
+        
+        # Parse recipe names for selection
+        recipe_names = parse_recipe_names(st.session_state['recipes'])
+        
+        if recipe_names:
+            # Initialize selected recipe in session state
+            if 'selected_recipe' not in st.session_state:
+                st.session_state['selected_recipe'] = recipe_names[0]
+            
+            # Recipe selector buttons
+            st.caption(get_text("select_recipe"))
+            cols = st.columns(len(recipe_names))
+            for idx, name in enumerate(recipe_names):
+                with cols[idx]:
+                    # Highlight selected recipe
+                    button_type = "primary" if st.session_state['selected_recipe'] == name else "secondary"
+                    if st.button(f"🍽️ {idx + 1}", key=f"recipe_{idx}", use_container_width=True, type=button_type):
+                        st.session_state['selected_recipe'] = name
+                        st.session_state.pop('current_photo', None)  # Clear cached photo
+                        st.rerun()
+            
+            # Display photo for selected recipe
+            selected = st.session_state['selected_recipe']
+            
+            # Load photo if not cached
+            if 'current_photo' not in st.session_state or st.session_state.get('photo_recipe') != selected:
+                with st.spinner(get_text("loading_photo")):
+                    photo = search_unsplash_photo(selected)
+                    st.session_state['current_photo'] = photo
+                    st.session_state['photo_recipe'] = selected
+            
+            # Display photo
+            photo = st.session_state.get('current_photo')
+            if photo:
+                st.image(photo['url'], caption=selected, use_container_width=True)
+                st.caption(f"📷 {get_text('photo_by')} [{photo['author']}]({photo['author_url']}) {get_text('photo_on')}")
+            
+            st.markdown("---")
+        
+        # Full recipe details
         st.markdown(st.session_state['recipes'])
         
         # Download and New Search buttons
@@ -917,6 +1035,9 @@ def main():
                 st.session_state.pop('ingredients_list', None)
                 st.session_state.pop('ingredients', None)
                 st.session_state.pop('recipes', None)
+                st.session_state.pop('selected_recipe', None)
+                st.session_state.pop('current_photo', None)
+                st.session_state.pop('photo_recipe', None)
                 st.rerun()
     
     # Sidebar for history (optional)
