@@ -1340,27 +1340,64 @@ def main():
             # Structured JSON data
             recipe_list = recipes_data["recipes"]
             
-            # Display recipe cards with emojis and names
+            # Initialize selected recipe index
+            if 'selected_recipe_idx' not in st.session_state:
+                st.session_state['selected_recipe_idx'] = 0
+            
+            # Display recipe cards with emojis and names (as clickable tabs)
             if recipe_list:
                 cols = st.columns(len(recipe_list))
                 for idx, recipe in enumerate(recipe_list):
                     with cols[idx]:
                         name = recipe.get("name", f"Recipe {idx + 1}")
                         emojis = get_recipe_emojis(name)
-                        st.markdown(f"""
-                        <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #667eea22, #764ba222); border-radius: 15px; margin-bottom: 1rem; min-height: 140px; display: flex; flex-direction: column; justify-content: center;'>
-                            <div style='font-size: 2.5rem; margin-bottom: 0.5rem;'>{emojis}</div>
-                            <div style='font-size: 0.85rem; font-weight: 600; line-height: 1.3;'>{name}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        is_selected = (idx == st.session_state['selected_recipe_idx'])
+                        
+                        # Card as clickable button
+                        if st.button(
+                            f"{emojis}",
+                            key=f"recipe_card_{idx}",
+                            use_container_width=True,
+                            type="primary" if is_selected else "secondary"
+                        ):
+                            st.session_state['selected_recipe_idx'] = idx
+                            st.rerun()
+                        
+                        # Recipe name below button
+                        text_style = "font-weight: 700;" if is_selected else "font-weight: 500;"
+                        st.markdown(f"<p style='text-align: center; font-size: 0.85rem; {text_style} margin-top: -10px;'>{name}</p>", unsafe_allow_html=True)
                 
-                # Full recipe details
+                # Custom CSS for recipe cards
+                st.markdown("""
+                <style>
+                    /* Recipe card buttons */
+                    [data-testid="stHorizontalBlock"] [data-testid="stButton"] button {
+                        min-height: 100px !important;
+                        font-size: 2.5rem !important;
+                        border-radius: 15px !important;
+                        background: linear-gradient(135deg, #667eea22, #764ba222) !important;
+                        border: 3px solid transparent !important;
+                        transition: all 0.2s ease !important;
+                    }
+                    [data-testid="stHorizontalBlock"] [data-testid="stButton"] button:hover {
+                        background: linear-gradient(135deg, #667eea33, #764ba233) !important;
+                        transform: translateY(-2px);
+                    }
+                    [data-testid="stHorizontalBlock"] [data-testid="stButton"] button[kind="primary"] {
+                        background: linear-gradient(135deg, #667eea44, #764ba244) !important;
+                        border: 3px solid #667eea !important;
+                    }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                # Show only selected recipe details
                 st.markdown("---")
-                for idx, recipe in enumerate(recipe_list, 1):
-                    st.markdown(format_recipe_for_display(recipe, idx, lang))
-                    st.markdown("---")
+                selected_idx = st.session_state['selected_recipe_idx']
+                if selected_idx < len(recipe_list):
+                    selected_recipe = recipe_list[selected_idx]
+                    st.markdown(format_recipe_for_display(selected_recipe, selected_idx + 1, lang))
                 
-                # Prepare download content
+                # Prepare download content (all recipes)
                 download_content = "\n\n".join([format_recipe_for_display(r, i, lang) for i, r in enumerate(recipe_list, 1)])
         
         elif isinstance(recipes_data, dict) and "raw_text" in recipes_data:
@@ -1391,6 +1428,7 @@ def main():
                 st.session_state.pop('ingredients_list', None)
                 st.session_state.pop('ingredients', None)
                 st.session_state.pop('recipes', None)
+                st.session_state.pop('selected_recipe_idx', None)
                 st.rerun()
     
     # Sidebar for history (optional)
