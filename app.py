@@ -49,6 +49,8 @@ TRANSLATIONS = {
         "validate_ingredients": "✅ Confirm & Find Recipes",
         "redetect": "🔄 Re-detect",
         "new_search": "🔄 New Search",
+        "add_ingredient": "Add an ingredient...",
+        "add_button": "➕ Add",
         "analyzing": "🔍 Analyzing your ingredients...",
         "creating_recipes": "👨‍🍳 Creating recipe suggestions...",
         "done": "✅ Done!",
@@ -132,6 +134,8 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "validate_ingredients": "✅ Confirmer & Trouver des Recettes",
         "redetect": "🔄 Re-détecter",
         "new_search": "🔄 Nouvelle Recherche",
+        "add_ingredient": "Ajouter un ingrédient...",
+        "add_button": "➕ Ajouter",
         "analyzing": "🔍 Analyse de vos ingrédients...",
         "creating_recipes": "👨‍🍳 Création des suggestions de recettes...",
         "done": "✅ Terminé !",
@@ -215,6 +219,8 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "validate_ingredients": "✅ Potwierdź i Znajdź Przepisy",
         "redetect": "🔄 Wykryj Ponownie",
         "new_search": "🔄 Nowe Wyszukiwanie",
+        "add_ingredient": "Dodaj składnik...",
+        "add_button": "➕ Dodaj",
         "analyzing": "🔍 Analizowanie składników...",
         "creating_recipes": "👨‍🍳 Tworzenie propozycji przepisów...",
         "done": "✅ Gotowe!",
@@ -414,6 +420,22 @@ st.markdown("""
         border-color: #4ECDC4;
         transform: scale(1.1);
     }
+    
+    /* Ingredient delete button */
+    div[data-testid="column"]:first-child .stButton > button {
+        background: transparent;
+        border: none;
+        color: #ff4444;
+        font-size: 1.2rem;
+        padding: 0.2rem;
+        min-height: 35px;
+        min-width: 35px;
+    }
+    
+    div[data-testid="column"]:first-child .stButton > button:hover {
+        background: #ffeeee;
+        transform: scale(1.1);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -444,6 +466,53 @@ def init_anthropic():
 def encode_image(uploaded_file) -> str:
     """Encode uploaded image to base64."""
     return base64.standard_b64encode(uploaded_file.getvalue()).decode("utf-8")
+
+
+def parse_ingredients_to_list(raw_text: str) -> list:
+    """Parse the raw ingredients text into a clean list."""
+    ingredients = []
+    lines = raw_text.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        # Skip empty lines, headers, and category labels
+        if not line:
+            continue
+        if line.upper().startswith(('INGREDIENTS', 'INGRÉDIENTS', 'SKŁADNIKI', 'CATEGORIES', 'CATÉGORIES', 'KATEGORIE')):
+            continue
+        if line.endswith(':') and len(line) < 50:
+            continue
+        
+        # Remove list markers
+        if line.startswith(('-', '•', '*', '–')):
+            line = line[1:].strip()
+        
+        # Skip lines that look like category headers
+        if ':' in line and len(line.split(':')[0]) < 20:
+            # This might be "Proteins: chicken, beef" - extract items after colon
+            after_colon = line.split(':', 1)[1].strip()
+            if after_colon:
+                # Split by comma if multiple items
+                items = [item.strip() for item in after_colon.split(',')]
+                for item in items:
+                    if item and len(item) > 1:
+                        ingredients.append(item)
+            continue
+        
+        # Add valid ingredient
+        if line and len(line) > 1 and not line.startswith(('Photo', '---')):
+            ingredients.append(line)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_ingredients = []
+    for ing in ingredients:
+        ing_lower = ing.lower()
+        if ing_lower not in seen:
+            seen.add(ing_lower)
+            unique_ingredients.append(ing)
+    
+    return unique_ingredients
 
 
 def get_image_media_type(uploaded_file) -> str:
@@ -687,6 +756,7 @@ def main():
             if st.button(get_text("clear_photos"), use_container_width=True):
                 st.session_state.images = []
                 st.session_state.pop('detected_ingredients', None)
+                st.session_state.pop('ingredients_list', None)
                 st.session_state.pop('ingredients', None)
                 st.session_state.pop('recipes', None)
                 st.rerun()
@@ -740,13 +810,46 @@ def main():
         st.markdown(get_text("ingredients_detected_title"))
         st.caption(get_text("edit_ingredients_help"))
         
-        # Editable text area with detected ingredients
-        edited_ingredients = st.text_area(
-            get_text("edit_ingredients"),
-            value=st.session_state['detected_ingredients'],
-            height=300,
-            label_visibility="collapsed"
-        )
+        # Parse ingredients into list if not already done
+        if 'ingredients_list' not in st.session_state:
+            st.session_state['ingredients_list'] = parse_ingredients_to_list(st.session_state['detected_ingredients'])
+        
+        # Display ingredients with delete buttons
+        ingredients_to_remove = []
+        
+        for idx, ingredient in enumerate(st.session_state['ingredients_list']):
+            col_del, col_ing = st.columns([1, 9])
+            with col_del:
+                if st.button("❌", key=f"del_{idx}", help=f"Remove {ingredient}"):
+                    ingredients_to_remove.append(idx)
+            with col_ing:
+                st.markdown(f"<span style='font-size: 1.1rem;'>{ingredient}</span>", unsafe_allow_html=True)
+        
+        # Remove ingredients marked for deletion
+        if ingredients_to_remove:
+            st.session_state['ingredients_list'] = [
+                ing for idx, ing in enumerate(st.session_state['ingredients_list']) 
+                if idx not in ingredients_to_remove
+            ]
+            st.rerun()
+        
+        # Add new ingredient
+        st.markdown("---")
+        col_input, col_add = st.columns([4, 1])
+        with col_input:
+            new_ingredient = st.text_input(
+                get_text("add_ingredient"),
+                key="new_ingredient_input",
+                label_visibility="collapsed",
+                placeholder=get_text("add_ingredient")
+            )
+        with col_add:
+            if st.button(get_text("add_button"), use_container_width=True):
+                if new_ingredient and new_ingredient.strip():
+                    st.session_state['ingredients_list'].append(new_ingredient.strip())
+                    st.rerun()
+        
+        st.markdown("---")
         
         # Buttons for re-detect and confirm
         col_redetect, col_confirm = st.columns(2)
@@ -754,12 +857,14 @@ def main():
         with col_redetect:
             if st.button(get_text("redetect"), use_container_width=True):
                 st.session_state.pop('detected_ingredients', None)
+                st.session_state.pop('ingredients_list', None)
                 st.rerun()
         
         with col_confirm:
             if st.button(get_text("validate_ingredients"), type="primary", use_container_width=True):
-                # Save edited ingredients and search for recipes
-                st.session_state['ingredients'] = edited_ingredients
+                # Convert list back to text for recipe generation
+                final_ingredients = "\n".join([f"- {ing}" for ing in st.session_state['ingredients_list']])
+                st.session_state['ingredients'] = final_ingredients
                 
                 progress_text = st.empty()
                 progress_bar = st.progress(0)
@@ -771,7 +876,7 @@ def main():
                     lang = st.session_state.language
                     recipes = suggest_recipes(
                         anthropic_client,
-                        edited_ingredients,
+                        final_ingredients,
                         dietary_preferences,
                         cuisine_preference,
                         lang
@@ -784,7 +889,7 @@ def main():
                     if supabase_client:
                         save_to_supabase(
                             supabase_client,
-                            edited_ingredients,
+                            final_ingredients,
                             recipes
                         )
                     
@@ -830,6 +935,7 @@ def main():
             if st.button(get_text("new_search"), use_container_width=True):
                 st.session_state.images = []
                 st.session_state.pop('detected_ingredients', None)
+                st.session_state.pop('ingredients_list', None)
                 st.session_state.pop('ingredients', None)
                 st.session_state.pop('recipes', None)
                 st.rerun()
