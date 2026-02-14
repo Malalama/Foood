@@ -76,25 +76,14 @@ TRANSLATIONS = {
         "error_tip": "💡 Tip: Wait a few seconds and try again. The AI service may be temporarily busy.",
         "dietary_options": ["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free", "Keto", "Low-Carb", "Nut-Free"],
         "cuisine_options": ["Any", "Italian", "Asian", "Mexican", "Indian", "Mediterranean", "American", "French"],
-        "ingredients_prompt": """Analyze this image and identify all visible food ingredients. 
-                        
-Return your response in this exact format:
-INGREDIENTS:
+        "ingredients_prompt": """Analyze this image and identify all visible food ingredients.
+
+Return ONLY a simple list of ingredients, one per line, with a dash before each:
 - ingredient 1
 - ingredient 2
 - ingredient 3
-(etc.)
 
-CATEGORIES:
-- Proteins: list any proteins
-- Vegetables: list any vegetables
-- Fruits: list any fruits
-- Dairy: list any dairy products
-- Grains/Carbs: list any grains or carbs
-- Condiments/Sauces: list any condiments or sauces
-- Other: list anything else
-
-Be specific about what you see. If you can identify specific varieties (e.g., cherry tomatoes vs regular tomatoes), please do so.""",
+Be specific (e.g., "cherry tomatoes" not just "tomatoes"). Only list actual food items you can clearly see. Do not include categories or headers.""",
         "recipes_prompt": """Based on these available ingredients:
 
 {ingredients}
@@ -161,25 +150,14 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "error_tip": "💡 Conseil : Attendez quelques secondes et réessayez.",
         "dietary_options": ["Végétarien", "Végan", "Sans Gluten", "Sans Lactose", "Keto", "Low-Carb", "Sans Noix"],
         "cuisine_options": ["Toutes", "Italienne", "Asiatique", "Mexicaine", "Indienne", "Méditerranéenne", "Américaine", "Française"],
-        "ingredients_prompt": """Analysez cette image et identifiez tous les ingrédients alimentaires visibles. 
-                        
-Répondez dans ce format exact :
-INGRÉDIENTS :
+        "ingredients_prompt": """Analysez cette image et identifiez tous les ingrédients alimentaires visibles.
+
+Retournez UNIQUEMENT une liste simple d'ingrédients, un par ligne, avec un tiret devant chaque :
 - ingrédient 1
 - ingrédient 2
 - ingrédient 3
-(etc.)
 
-CATÉGORIES :
-- Protéines : listez les protéines
-- Légumes : listez les légumes
-- Fruits : listez les fruits
-- Produits laitiers : listez les produits laitiers
-- Féculents/Glucides : listez les féculents
-- Condiments/Sauces : listez les condiments ou sauces
-- Autres : listez le reste
-
-Soyez précis. Si vous pouvez identifier des variétés spécifiques (ex: tomates cerises vs tomates classiques), faites-le.""",
+Soyez précis (ex: "tomates cerises" plutôt que "tomates"). Listez uniquement les aliments que vous pouvez clairement voir. N'incluez pas de catégories ou d'en-têtes.""",
         "recipes_prompt": """Basé sur ces ingrédients disponibles :
 
 {ingredients}
@@ -246,25 +224,14 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "error_tip": "💡 Wskazówka: Poczekaj kilka sekund i spróbuj ponownie.",
         "dietary_options": ["Wegetariańskie", "Wegańskie", "Bezglutenowe", "Bez Laktozy", "Keto", "Low-Carb", "Bez Orzechów"],
         "cuisine_options": ["Dowolna", "Włoska", "Azjatycka", "Meksykańska", "Indyjska", "Śródziemnomorska", "Amerykańska", "Francuska"],
-        "ingredients_prompt": """Przeanalizuj ten obraz i zidentyfikuj wszystkie widoczne składniki spożywcze. 
-                        
-Odpowiedz w tym formacie:
-SKŁADNIKI:
+        "ingredients_prompt": """Przeanalizuj ten obraz i zidentyfikuj wszystkie widoczne składniki spożywcze.
+
+Zwróć TYLKO prostą listę składników, jeden na linię, z myślnikiem przed każdym:
 - składnik 1
 - składnik 2
 - składnik 3
-(itd.)
 
-KATEGORIE:
-- Białka: wymień białka
-- Warzywa: wymień warzywa
-- Owoce: wymień owoce
-- Nabiał: wymień produkty mleczne
-- Węglowodany: wymień węglowodany
-- Przyprawy/Sosy: wymień przyprawy i sosy
-- Inne: wymień pozostałe
-
-Bądź konkretny. Jeśli możesz zidentyfikować konkretne odmiany (np. pomidory koktajlowe vs zwykłe), zrób to.""",
+Bądź konkretny (np. "pomidory koktajlowe" zamiast "pomidory"). Wymień tylko produkty spożywcze, które wyraźnie widzisz. Nie dodawaj kategorii ani nagłówków.""",
         "recipes_prompt": """Na podstawie tych dostępnych składników:
 
 {ingredients}
@@ -473,6 +440,14 @@ def parse_ingredients_to_list(raw_text: str) -> list:
     ingredients = []
     lines = raw_text.split('\n')
     
+    # Words/phrases to skip (not actual ingredients)
+    skip_phrases = [
+        'none visible', 'none', 'n/a', 'aucun', 'aucune', 'pas visible', 
+        'non visible', 'brak', 'nie widoczne', 'żaden', 'nothing', 
+        'not visible', 'empty', 'vide', 'pusto', '(none)', '(aucun)',
+        'none identified', 'aucun identifié', 'nie zidentyfikowano'
+    ]
+    
     for line in lines:
         line = line.strip()
         # Skip empty lines, headers, and category labels
@@ -488,15 +463,19 @@ def parse_ingredients_to_list(raw_text: str) -> list:
             line = line[1:].strip()
         
         # Skip lines that look like category headers
-        if ':' in line and len(line.split(':')[0]) < 20:
+        if ':' in line and len(line.split(':')[0]) < 25:
             # This might be "Proteins: chicken, beef" - extract items after colon
             after_colon = line.split(':', 1)[1].strip()
-            if after_colon:
+            if after_colon and after_colon.lower() not in skip_phrases:
                 # Split by comma if multiple items
                 items = [item.strip() for item in after_colon.split(',')]
                 for item in items:
-                    if item and len(item) > 1:
+                    if item and len(item) > 1 and item.lower() not in skip_phrases:
                         ingredients.append(item)
+            continue
+        
+        # Skip non-ingredient phrases
+        if line.lower() in skip_phrases:
             continue
         
         # Add valid ingredient
@@ -508,7 +487,7 @@ def parse_ingredients_to_list(raw_text: str) -> list:
     unique_ingredients = []
     for ing in ingredients:
         ing_lower = ing.lower()
-        if ing_lower not in seen:
+        if ing_lower not in seen and ing_lower not in skip_phrases:
             seen.add(ing_lower)
             unique_ingredients.append(ing)
     
