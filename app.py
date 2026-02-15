@@ -5,6 +5,7 @@ Upload a photo of your ingredients and get personalized recipe suggestions!
 
 import streamlit as st
 import anthropic
+import openai
 import base64
 import time
 import json
@@ -393,6 +394,10 @@ TRANSLATIONS = {
         "new_search": "🔄 New Search",
         "add_ingredient": "Add an ingredient...",
         "add_button": "➕ Add",
+        "select_model": "🤖 AI Model",
+        "model_claude": "Claude (Anthropic)",
+        "model_gpt4": "GPT-4o (OpenAI)",
+        "model_gpt4_mini": "GPT-4o-mini (OpenAI)",
         "analyzing": "🔍 Analyzing your ingredients...",
         "creating_recipes": "👨‍🍳 Creating recipe suggestions...",
         "done": "✅ Done!",
@@ -410,8 +415,8 @@ TRANSLATIONS = {
         "tip_include": "Include all ingredients",
         "footer": "Made with ❤️ using Streamlit & Claude AI",
         "footer_tip": "Tip: Good lighting = better results!",
-        "error_api_key": "⚠️ Anthropic API key not found. Please configure ANTHROPIC_API_KEY in your secrets.",
-        "error_api_key_info": "Get your API key from: https://console.anthropic.com/",
+        "error_api_key": "⚠️ No AI API key found. Please configure ANTHROPIC_API_KEY or OPENAI_API_KEY in your secrets.",
+        "error_api_key_info": "Get API keys from: https://console.anthropic.com/ or https://platform.openai.com/",
         "error_busy": "The AI service is currently busy. Please try again in a few moments.",
         "error_rate_limit": "Rate limit reached. Please wait a minute before trying again.",
         "error_connection": "Could not connect to AI service. Please check your internet connection.",
@@ -467,6 +472,10 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "new_search": "🔄 Nouvelle Recherche",
         "add_ingredient": "Ajouter un ingrédient...",
         "add_button": "➕ Ajouter",
+        "select_model": "🤖 Modèle IA",
+        "model_claude": "Claude (Anthropic)",
+        "model_gpt4": "GPT-4o (OpenAI)",
+        "model_gpt4_mini": "GPT-4o-mini (OpenAI)",
         "analyzing": "🔍 Analyse de vos ingrédients...",
         "creating_recipes": "👨‍🍳 Création des suggestions de recettes...",
         "done": "✅ Terminé !",
@@ -484,8 +493,8 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "tip_include": "Incluez tous les ingrédients",
         "footer": "Fait avec ❤️ avec Streamlit & Claude AI",
         "footer_tip": "Conseil : Bon éclairage = meilleurs résultats !",
-        "error_api_key": "⚠️ Clé API Anthropic non trouvée. Veuillez configurer ANTHROPIC_API_KEY.",
-        "error_api_key_info": "Obtenez votre clé API sur : https://console.anthropic.com/",
+        "error_api_key": "⚠️ Aucune clé API IA trouvée. Configurez ANTHROPIC_API_KEY ou OPENAI_API_KEY.",
+        "error_api_key_info": "Obtenez vos clés API sur : console.anthropic.com ou platform.openai.com",
         "error_busy": "Le service IA est actuellement occupé. Veuillez réessayer dans quelques instants.",
         "error_rate_limit": "Limite de requêtes atteinte. Veuillez patienter une minute.",
         "error_connection": "Impossible de se connecter au service IA. Vérifiez votre connexion internet.",
@@ -541,6 +550,10 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "new_search": "🔄 Nowe Wyszukiwanie",
         "add_ingredient": "Dodaj składnik...",
         "add_button": "➕ Dodaj",
+        "select_model": "🤖 Model AI",
+        "model_claude": "Claude (Anthropic)",
+        "model_gpt4": "GPT-4o (OpenAI)",
+        "model_gpt4_mini": "GPT-4o-mini (OpenAI)",
         "analyzing": "🔍 Analizowanie składników...",
         "creating_recipes": "👨‍🍳 Tworzenie propozycji przepisów...",
         "done": "✅ Gotowe!",
@@ -558,8 +571,8 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "tip_include": "Uwzględnij wszystkie składniki",
         "footer": "Stworzone z ❤️ przy użyciu Streamlit & Claude AI",
         "footer_tip": "Wskazówka: Dobre światło = lepsze wyniki!",
-        "error_api_key": "⚠️ Nie znaleziono klucza API Anthropic. Skonfiguruj ANTHROPIC_API_KEY.",
-        "error_api_key_info": "Uzyskaj klucz API na: https://console.anthropic.com/",
+        "error_api_key": "⚠️ Nie znaleziono klucza API. Skonfiguruj ANTHROPIC_API_KEY lub OPENAI_API_KEY.",
+        "error_api_key_info": "Uzyskaj klucze API na: console.anthropic.com lub platform.openai.com",
         "error_busy": "Usługa AI jest obecnie zajęta. Spróbuj ponownie za chwilę.",
         "error_rate_limit": "Osiągnięto limit zapytań. Poczekaj minutę przed ponowną próbą.",
         "error_connection": "Nie można połączyć się z usługą AI. Sprawdź połączenie internetowe.",
@@ -772,6 +785,14 @@ def init_anthropic():
     return anthropic.Anthropic(api_key=api_key)
 
 
+def init_openai():
+    """Initialize OpenAI client."""
+    api_key = get_secret("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    return openai.OpenAI(api_key=api_key)
+
+
 def encode_image(uploaded_file) -> str:
     """Encode uploaded image to base64."""
     return base64.standard_b64encode(uploaded_file.getvalue()).decode("utf-8")
@@ -844,7 +865,7 @@ def get_image_media_type(uploaded_file) -> str:
     return "image/jpeg"
 
 
-def identify_ingredients(client, image_data: str, media_type: str, lang: str = "en") -> dict:
+def identify_ingredients_claude(client, image_data: str, media_type: str, lang: str = "en") -> dict:
     """Use Claude to identify ingredients from an image with retry logic."""
     
     max_retries = 3
@@ -900,26 +921,63 @@ def identify_ingredients(client, image_data: str, media_type: str, lang: str = "
             raise Exception(f"Unexpected error: {str(e)}")
 
 
-def suggest_recipes(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en") -> dict:
-    """Use Claude to suggest recipes based on identified ingredients with retry logic. Returns structured data."""
-    
-    preferences_text = ""
-    if dietary_preferences:
-        preferences_text += f"\nDietary requirements: {', '.join(dietary_preferences)}"
-    if cuisine_preference and cuisine_preference != "Any" and cuisine_preference != "Toutes" and cuisine_preference != "Dowolna":
-        preferences_text += f"\nPreferred cuisine: {cuisine_preference}"
+def identify_ingredients_openai(client, image_data: str, media_type: str, model: str, lang: str = "en") -> dict:
+    """Use OpenAI to identify ingredients from an image with retry logic."""
     
     max_retries = 3
     retry_delay = 2
+    prompt = TRANSLATIONS[lang]["ingredients_prompt"]
     
-    # Language-specific instructions
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                max_tokens=1024,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{media_type};base64,{image_data}"
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt
+                            }
+                        ],
+                    }
+                ],
+            )
+            return {"raw_response": response.choices[0].message.content}
+        
+        except openai.RateLimitError:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+            else:
+                raise Exception("Rate limit reached. Please wait a minute before trying again.")
+        except openai.APIConnectionError:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+            else:
+                raise Exception("Could not connect to AI service. Please check your internet connection.")
+        except Exception as e:
+            raise Exception(f"Unexpected error: {str(e)}")
+
+
+def get_recipe_prompt(ingredients: str, preferences_text: str, lang: str) -> str:
+    """Generate the recipe suggestion prompt."""
     lang_instructions = {
         "en": "Respond in English.",
         "fr": "Réponds en français.",
         "pl": "Odpowiedz po polsku."
     }
     
-    prompt = f"""Based on these available ingredients:
+    return f"""Based on these available ingredients:
 
 {ingredients}
 {preferences_text}
@@ -950,6 +1008,38 @@ Make sure to:
 - Keep recipe names short and descriptive (max 6 words)
 - Return ONLY the JSON, no other text before or after"""
 
+
+def parse_recipe_response(response_text: str) -> dict:
+    """Parse the JSON response from the AI model."""
+    # Clean up response if needed (remove markdown code blocks if present)
+    cleaned = response_text.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+    
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        return {"raw_text": response_text, "parse_error": str(e)}
+
+
+def suggest_recipes_claude(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en") -> dict:
+    """Use Claude to suggest recipes based on identified ingredients."""
+    
+    preferences_text = ""
+    if dietary_preferences:
+        preferences_text += f"\nDietary requirements: {', '.join(dietary_preferences)}"
+    if cuisine_preference and cuisine_preference != "Any" and cuisine_preference != "Toutes" and cuisine_preference != "Dowolna":
+        preferences_text += f"\nPreferred cuisine: {cuisine_preference}"
+    
+    max_retries = 3
+    retry_delay = 2
+    prompt = get_recipe_prompt(ingredients, preferences_text, lang)
+
     for attempt in range(max_retries):
         try:
             message = client.messages.create(
@@ -963,28 +1053,7 @@ Make sure to:
                 ],
             )
             
-            response_text = message.content[0].text
-            
-            # Try to parse JSON from response
-
-            
-            # Clean up response if needed (remove markdown code blocks if present)
-            cleaned = response_text.strip()
-            if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-            if cleaned.startswith("```"):
-                cleaned = cleaned[3:]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
-            
-            # Parse JSON
-            recipes_data = json.loads(cleaned)
-            return recipes_data
-        
-        except json.JSONDecodeError as e:
-            # If JSON parsing fails, return raw text as fallback
-            return {"raw_text": response_text, "parse_error": str(e)}
+            return parse_recipe_response(message.content[0].text)
         
         except anthropic.APIStatusError as e:
             if e.status_code in [529, 503]:
@@ -998,6 +1067,52 @@ Make sure to:
             else:
                 raise Exception(f"API error ({e.status_code}): {str(e)}")
         except anthropic.APIConnectionError:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+            else:
+                raise Exception("Could not connect to AI service. Please check your internet connection.")
+        except Exception as e:
+            if "JSON" in str(e) or "json" in str(e):
+                raise Exception(f"Failed to parse recipe data: {str(e)}")
+            raise Exception(f"Unexpected error: {str(e)}")
+
+
+def suggest_recipes_openai(client, model: str, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en") -> dict:
+    """Use OpenAI to suggest recipes based on identified ingredients."""
+    
+    preferences_text = ""
+    if dietary_preferences:
+        preferences_text += f"\nDietary requirements: {', '.join(dietary_preferences)}"
+    if cuisine_preference and cuisine_preference != "Any" and cuisine_preference != "Toutes" and cuisine_preference != "Dowolna":
+        preferences_text += f"\nPreferred cuisine: {cuisine_preference}"
+    
+    max_retries = 3
+    retry_delay = 2
+    prompt = get_recipe_prompt(ingredients, preferences_text, lang)
+
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                max_tokens=3000,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+            )
+            
+            return parse_recipe_response(response.choices[0].message.content)
+        
+        except openai.RateLimitError:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay * (attempt + 1))
+                continue
+            else:
+                raise Exception("Rate limit reached. Please wait a minute before trying again.")
+        except openai.APIConnectionError:
             if attempt < max_retries - 1:
                 time.sleep(retry_delay * (attempt + 1))
                 continue
@@ -1089,16 +1204,40 @@ def main():
     
     # Initialize clients
     anthropic_client = init_anthropic()
+    openai_client = init_openai()
     supabase_client = init_supabase()
     
-    # Check for API key
-    if not anthropic_client:
+    # Check for at least one API key
+    if not anthropic_client and not openai_client:
         st.error(get_text("error_api_key"))
         st.info(get_text("error_api_key_info"))
         return
     
+    # Build available models list
+    available_models = []
+    if anthropic_client:
+        available_models.append(("claude", get_text("model_claude")))
+    if openai_client:
+        available_models.append(("gpt-4o", get_text("model_gpt4")))
+        available_models.append(("gpt-4o-mini", get_text("model_gpt4_mini")))
+    
     # Preferences in expander (mobile-friendly)
     with st.expander(get_text("preferences"), expanded=False):
+        # Model selector
+        if len(available_models) > 1:
+            model_options = [m[1] for m in available_models]
+            model_keys = [m[0] for m in available_models]
+            selected_model_label = st.selectbox(
+                get_text("select_model"),
+                model_options,
+                index=0
+            )
+            selected_model = model_keys[model_options.index(selected_model_label)]
+        else:
+            selected_model = available_models[0][0] if available_models else "claude"
+        
+        st.session_state['selected_model'] = selected_model
+        
         dietary_preferences = st.multiselect(
             get_text("dietary_requirements"),
             get_text("dietary_options"),
@@ -1176,6 +1315,7 @@ def main():
             
             try:
                 lang = st.session_state.language
+                selected_model = st.session_state.get('selected_model', 'claude')
                 all_ingredients = []
                 total_images = len(st.session_state.images)
                 
@@ -1188,8 +1328,11 @@ def main():
                     image_data = encode_image(img)
                     media_type = get_image_media_type(img)
                     
-                    # Identify ingredients
-                    ingredients_result = identify_ingredients(anthropic_client, image_data, media_type, lang)
+                    # Identify ingredients using selected model
+                    if selected_model == "claude":
+                        ingredients_result = identify_ingredients_claude(anthropic_client, image_data, media_type, lang)
+                    else:
+                        ingredients_result = identify_ingredients_openai(openai_client, image_data, media_type, selected_model, lang)
                     all_ingredients.append(ingredients_result['raw_response'])
                 
                 # Combine all ingredients
@@ -1280,13 +1423,26 @@ def main():
                     progress_bar.progress(30)
                     
                     lang = st.session_state.language
-                    recipes = suggest_recipes(
-                        anthropic_client,
-                        final_ingredients,
-                        dietary_preferences,
-                        cuisine_preference,
-                        lang
-                    )
+                    selected_model = st.session_state.get('selected_model', 'claude')
+                    
+                    # Generate recipes using selected model
+                    if selected_model == "claude":
+                        recipes = suggest_recipes_claude(
+                            anthropic_client,
+                            final_ingredients,
+                            dietary_preferences,
+                            cuisine_preference,
+                            lang
+                        )
+                    else:
+                        recipes = suggest_recipes_openai(
+                            openai_client,
+                            selected_model,
+                            final_ingredients,
+                            dietary_preferences,
+                            cuisine_preference,
+                            lang
+                        )
                     st.session_state['recipes'] = recipes
                     
                     progress_bar.progress(90)
