@@ -1223,21 +1223,6 @@ def main():
     
     # Preferences in expander (mobile-friendly)
     with st.expander(get_text("preferences"), expanded=False):
-        # Model selector
-        if len(available_models) > 1:
-            model_options = [m[1] for m in available_models]
-            model_keys = [m[0] for m in available_models]
-            selected_model_label = st.selectbox(
-                get_text("select_model"),
-                model_options,
-                index=0
-            )
-            selected_model = model_keys[model_options.index(selected_model_label)]
-        else:
-            selected_model = available_models[0][0] if available_models else "claude"
-        
-        st.session_state['selected_model'] = selected_model
-        
         dietary_preferences = st.multiselect(
             get_text("dietary_requirements"),
             get_text("dietary_options"),
@@ -1249,6 +1234,10 @@ def main():
             get_text("preferred_cuisine"),
             get_text("cuisine_options")
         )
+    
+    # Set default model if only one available
+    if 'selected_model' not in st.session_state:
+        st.session_state['selected_model'] = available_models[0][0] if available_models else "claude"
     
     # Image input section with tabs for camera/upload
     st.markdown(get_text("add_ingredients"))
@@ -1362,17 +1351,23 @@ def main():
         if 'ingredients_list' not in st.session_state:
             st.session_state['ingredients_list'] = parse_ingredients_to_list(st.session_state['detected_ingredients'])
         
-        # Display ingredients with delete buttons
+        # Display ingredients with delete buttons in 2 columns
         ingredients_to_remove = []
+        ingredients = st.session_state['ingredients_list']
         
-        for idx, ingredient in enumerate(st.session_state['ingredients_list']):
-            col_del, col_ing = st.columns([1, 9])
-            with col_del:
-                if st.button("❌", key=f"del_{idx}", help=f"Remove {ingredient}"):
-                    ingredients_to_remove.append(idx)
-            with col_ing:
-                emoji = get_ingredient_emoji(ingredient)
-                st.markdown(f"<span style='font-size: 1.3rem;'>{emoji}</span> <span style='font-size: 1.1rem;'>{ingredient}</span>", unsafe_allow_html=True)
+        # Create 2 columns
+        col_left, col_right = st.columns(2)
+        
+        for idx, ingredient in enumerate(ingredients):
+            # Alternate between left and right columns
+            with col_left if idx % 2 == 0 else col_right:
+                col_del, col_ing = st.columns([1, 5])
+                with col_del:
+                    if st.button("❌", key=f"del_{idx}", help=f"Remove {ingredient}"):
+                        ingredients_to_remove.append(idx)
+                with col_ing:
+                    emoji = get_ingredient_emoji(ingredient)
+                    st.markdown(f"<span style='font-size: 1.2rem;'>{emoji}</span> <span style='font-size: 0.95rem;'>{ingredient}</span>", unsafe_allow_html=True)
         
         # Remove ingredients marked for deletion
         if ingredients_to_remove:
@@ -1477,11 +1472,14 @@ def main():
         # Ingredients found
         if 'ingredients' in st.session_state:
             with st.expander(get_text("detected_ingredients"), expanded=False):
-                # Show ingredients with emojis
+                # Show ingredients with emojis in 2 columns
                 if 'ingredients_list' in st.session_state:
-                    for ing in st.session_state['ingredients_list']:
-                        emoji = get_ingredient_emoji(ing)
-                        st.markdown(f"{emoji} {ing}")
+                    ingredients = st.session_state['ingredients_list']
+                    col_left, col_right = st.columns(2)
+                    for idx, ing in enumerate(ingredients):
+                        with col_left if idx % 2 == 0 else col_right:
+                            emoji = get_ingredient_emoji(ing)
+                            st.markdown(f"{emoji} {ing}")
                 else:
                     st.markdown(st.session_state['ingredients'])
         
@@ -1587,8 +1585,24 @@ def main():
                 st.session_state.pop('selected_recipe_idx', None)
                 st.rerun()
     
-    # Sidebar for history (optional)
+    # Sidebar for model selection and history
     with st.sidebar:
+        # Model selector
+        if len(available_models) > 1:
+            st.header(get_text("select_model"))
+            model_options = [m[1] for m in available_models]
+            model_keys = [m[0] for m in available_models]
+            selected_model_label = st.selectbox(
+                get_text("select_model"),
+                model_options,
+                index=0,
+                label_visibility="collapsed"
+            )
+            selected_model = model_keys[model_options.index(selected_model_label)]
+            st.session_state['selected_model'] = selected_model
+            st.divider()
+        
+        # History section
         st.header(get_text("history"))
         
         if supabase_client:
