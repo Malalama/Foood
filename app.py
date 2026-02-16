@@ -386,6 +386,10 @@ TRANSLATIONS = {
         "clear_photos": "🗑️ Clear All",
         "detect_ingredients": "🔍 Detect Ingredients",
         "find_recipes": "🍳 Find Recipes",
+        "finding_recipes": "Finding delicious recipes...",
+        "regenerate_recipes": "🔄 Regenerate Recipes",
+        "modify_ingredients": "Modify ingredients if needed, then regenerate",
+        "find_recipes": "🍳 Find Recipes",
         "edit_ingredients": "✏️ Edit Ingredients",
         "edit_ingredients_help": "Remove or add ingredients before searching for recipes",
         "ingredients_detected_title": "### 🥗 Detected Ingredients",
@@ -465,6 +469,10 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "photos_count": "📷 {count} photo(s) sélectionnée(s)",
         "clear_photos": "🗑️ Tout Effacer",
         "detect_ingredients": "🔍 Détecter les Ingrédients",
+        "find_recipes": "🍳 Trouver des recettes",
+        "finding_recipes": "Recherche de recettes délicieuses...",
+        "regenerate_recipes": "🔄 Régénérer les recettes",
+        "modify_ingredients": "Modifiez les ingrédients si besoin, puis régénérez",
         "find_recipes": "🍳 Trouver des Recettes",
         "edit_ingredients": "✏️ Modifier les Ingrédients",
         "edit_ingredients_help": "Supprimez ou ajoutez des ingrédients avant de chercher des recettes",
@@ -545,6 +553,10 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "photos_count": "📷 Wybrano {count} zdjęć",
         "clear_photos": "🗑️ Wyczyść Wszystko",
         "detect_ingredients": "🔍 Wykryj Składniki",
+        "find_recipes": "🍳 Znajdź przepisy",
+        "finding_recipes": "Szukam pysznych przepisów...",
+        "regenerate_recipes": "🔄 Wygeneruj ponownie",
+        "modify_ingredients": "Zmodyfikuj składniki jeśli potrzebujesz, a potem wygeneruj ponownie",
         "find_recipes": "🍳 Znajdź Przepisy",
         "edit_ingredients": "✏️ Edytuj Składniki",
         "edit_ingredients_help": "Usuń lub dodaj składniki przed wyszukaniem przepisów",
@@ -1335,8 +1347,8 @@ def main():
             with cols[idx % 3]:
                 st.image(img, use_container_width=True)
         
-        # Clear images button and detect button
-        col_clear, col_detect = st.columns(2)
+        # Clear images button and Find Recipes button
+        col_clear, col_find = st.columns(2)
         with col_clear:
             if st.button(get_text("clear_photos"), use_container_width=True):
                 st.session_state.images = []
@@ -1344,26 +1356,32 @@ def main():
                 st.session_state.pop('ingredients_list', None)
                 st.session_state.pop('ingredients', None)
                 st.session_state.pop('recipes', None)
+                st.session_state.pop('ingredients_modified', None)
                 st.rerun()
         
-        with col_detect:
-            detect_clicked = st.button(get_text("detect_ingredients"), type="primary", use_container_width=True)
+        with col_find:
+            # Only show "Find Recipes" if we don't have recipes yet
+            if 'recipes' not in st.session_state:
+                find_clicked = st.button(get_text("find_recipes"), type="primary", use_container_width=True)
+            else:
+                find_clicked = False
         
-        # Step 1: Detect ingredients
-        if detect_clicked:
+        # Combined Step: Detect ingredients AND generate recipes
+        if find_clicked:
             progress_text = st.empty()
             progress_bar = st.progress(0)
             
             try:
                 lang = st.session_state.language
                 selected_model = st.session_state.get('selected_model', 'claude')
+                kids_mode = st.session_state.get('kids_mode', False)
                 all_ingredients = []
                 total_images = len(st.session_state.images)
                 
-                # Analyze each image
+                # Step 1: Analyze each image (0-50%)
                 for idx, img in enumerate(st.session_state.images):
                     progress_text.text(f"{get_text('analyzing')} ({idx + 1}/{total_images})")
-                    progress_bar.progress(int((idx + 1) / total_images * 100))
+                    progress_bar.progress(int((idx + 1) / total_images * 50))
                     
                     # Encode image
                     image_data = encode_image(img)
@@ -1376,9 +1394,50 @@ def main():
                         ingredients_result = identify_ingredients_openai(openai_client, image_data, media_type, selected_model, lang)
                     all_ingredients.append(ingredients_result['raw_response'])
                 
-                # Combine all ingredients
+                # Combine and parse ingredients
                 combined_ingredients = "\n\n".join(all_ingredients)
                 st.session_state['detected_ingredients'] = combined_ingredients
+                st.session_state['ingredients_list'] = parse_ingredients_to_list(combined_ingredients)
+                
+                # Step 2: Generate recipes (50-100%)
+                progress_text.text(get_text("finding_recipes"))
+                progress_bar.progress(60)
+                
+                final_ingredients = "\n".join([f"- {ing}" for ing in st.session_state['ingredients_list']])
+                st.session_state['ingredients'] = final_ingredients
+                
+                # Generate recipes using selected model
+                if selected_model == "claude":
+                    recipes = suggest_recipes_claude(
+                        anthropic_client,
+                        final_ingredients,
+                        dietary_preferences,
+                        cuisine_preference,
+                        lang,
+                        kids_mode
+                    )
+                else:
+                    recipes = suggest_recipes_openai(
+                        openai_client,
+                        selected_model,
+                        final_ingredients,
+                        dietary_preferences,
+                        cuisine_preference,
+                        lang,
+                        kids_mode
+                    )
+                st.session_state['recipes'] = recipes
+                st.session_state['ingredients_modified'] = False
+                
+                progress_bar.progress(90)
+                
+                # Save to Supabase if configured
+                if supabase_client:
+                    save_to_supabase(
+                        supabase_client,
+                        final_ingredients,
+                        recipes
+                    )
                 
                 progress_bar.progress(100)
                 progress_text.text(get_text("done"))
@@ -1393,150 +1452,110 @@ def main():
                 st.error(f"⚠️ {str(e)}")
                 st.info(get_text("error_tip"))
     
-    # Step 2: Show editable ingredients
-    if 'detected_ingredients' in st.session_state and 'recipes' not in st.session_state:
-        st.divider()
-        st.markdown(get_text("ingredients_detected_title"))
-        st.caption(get_text("edit_ingredients_help"))
-        
-        # Parse ingredients into list if not already done
-        if 'ingredients_list' not in st.session_state:
-            st.session_state['ingredients_list'] = parse_ingredients_to_list(st.session_state['detected_ingredients'])
-        
-        # Display ingredients with delete buttons in 2 columns
-        ingredients_to_remove = []
-        ingredients = st.session_state['ingredients_list']
-        
-        # Create 2 columns
-        col_left, col_right = st.columns(2)
-        
-        for idx, ingredient in enumerate(ingredients):
-            # Alternate between left and right columns
-            with col_left if idx % 2 == 0 else col_right:
-                col_del, col_ing = st.columns([1, 5])
-                with col_del:
-                    if st.button("❌", key=f"del_{idx}", help=f"Remove {ingredient}"):
-                        ingredients_to_remove.append(idx)
-                with col_ing:
-                    emoji = get_ingredient_emoji(ingredient)
-                    st.markdown(f"<span style='font-size: 1.2rem;'>{emoji}</span> <span style='font-size: 0.95rem;'>{ingredient}</span>", unsafe_allow_html=True)
-        
-        # Remove ingredients marked for deletion
-        if ingredients_to_remove:
-            st.session_state['ingredients_list'] = [
-                ing for idx, ing in enumerate(st.session_state['ingredients_list']) 
-                if idx not in ingredients_to_remove
-            ]
-            st.rerun()
-        
-        # Add new ingredient
-        st.markdown("---")
-        col_input, col_add = st.columns([4, 1])
-        with col_input:
-            new_ingredient = st.text_input(
-                get_text("add_ingredient"),
-                key="new_ingredient_input",
-                label_visibility="collapsed",
-                placeholder=get_text("add_ingredient")
-            )
-        with col_add:
-            if st.button(get_text("add_button"), use_container_width=True):
-                if new_ingredient and new_ingredient.strip():
-                    st.session_state['ingredients_list'].append(new_ingredient.strip())
-                    st.rerun()
-        
-        st.markdown("---")
-        
-        # Buttons for re-detect and confirm
-        col_redetect, col_confirm = st.columns(2)
-        
-        with col_redetect:
-            if st.button(get_text("redetect"), use_container_width=True):
-                st.session_state.pop('detected_ingredients', None)
-                st.session_state.pop('ingredients_list', None)
-                st.rerun()
-        
-        with col_confirm:
-            if st.button(get_text("validate_ingredients"), type="primary", use_container_width=True):
-                # Convert list back to text for recipe generation
-                final_ingredients = "\n".join([f"- {ing}" for ing in st.session_state['ingredients_list']])
-                st.session_state['ingredients'] = final_ingredients
-                
-                progress_text = st.empty()
-                progress_bar = st.progress(0)
-                
-                try:
-                    progress_text.text(get_text("creating_recipes"))
-                    progress_bar.progress(30)
-                    
-                    lang = st.session_state.language
-                    selected_model = st.session_state.get('selected_model', 'claude')
-                    kids_mode = st.session_state.get('kids_mode', False)
-                    
-                    # Generate recipes using selected model
-                    if selected_model == "claude":
-                        recipes = suggest_recipes_claude(
-                            anthropic_client,
-                            final_ingredients,
-                            dietary_preferences,
-                            cuisine_preference,
-                            lang,
-                            kids_mode
-                        )
-                    else:
-                        recipes = suggest_recipes_openai(
-                            openai_client,
-                            selected_model,
-                            final_ingredients,
-                            dietary_preferences,
-                            cuisine_preference,
-                            lang,
-                            kids_mode
-                        )
-                    st.session_state['recipes'] = recipes
-                    
-                    progress_bar.progress(90)
-                    
-                    # Save to Supabase if configured
-                    if supabase_client:
-                        save_to_supabase(
-                            supabase_client,
-                            final_ingredients,
-                            recipes
-                        )
-                    
-                    progress_bar.progress(100)
-                    progress_text.text(get_text("done"))
-                    time.sleep(0.5)
-                    progress_bar.empty()
-                    progress_text.empty()
-                    
-                    st.success(get_text("recipes_ready"))
-                    st.rerun()
-                    
-                except Exception as e:
-                    progress_bar.empty()
-                    progress_text.empty()
-                    st.error(f"⚠️ {str(e)}")
-                    st.info(get_text("error_tip"))
-    
     # Results section
     if 'recipes' in st.session_state:
         st.divider()
         
-        # Ingredients found
-        if 'ingredients' in st.session_state:
+        # Editable ingredients section
+        if 'ingredients_list' in st.session_state:
             with st.expander(get_text("detected_ingredients"), expanded=False):
-                # Show ingredients with emojis in 2 columns
-                if 'ingredients_list' in st.session_state:
-                    ingredients = st.session_state['ingredients_list']
-                    col_left, col_right = st.columns(2)
-                    for idx, ing in enumerate(ingredients):
-                        with col_left if idx % 2 == 0 else col_right:
-                            emoji = get_ingredient_emoji(ing)
-                            st.markdown(f"{emoji} {ing}")
-                else:
-                    st.markdown(st.session_state['ingredients'])
+                st.caption(get_text("modify_ingredients"))
+                
+                # Display ingredients with delete buttons in 2 columns
+                ingredients_to_remove = []
+                ingredients = st.session_state['ingredients_list']
+                
+                col_left, col_right = st.columns(2)
+                for idx, ingredient in enumerate(ingredients):
+                    with col_left if idx % 2 == 0 else col_right:
+                        col_del, col_ing = st.columns([1, 5])
+                        with col_del:
+                            if st.button("❌", key=f"del_result_{idx}", help=f"Remove {ingredient}"):
+                                ingredients_to_remove.append(idx)
+                        with col_ing:
+                            emoji = get_ingredient_emoji(ingredient)
+                            st.markdown(f"<span style='font-size: 1.1rem;'>{emoji}</span> <span style='font-size: 0.9rem;'>{ingredient}</span>", unsafe_allow_html=True)
+                
+                # Remove ingredients marked for deletion
+                if ingredients_to_remove:
+                    st.session_state['ingredients_list'] = [
+                        ing for idx, ing in enumerate(st.session_state['ingredients_list']) 
+                        if idx not in ingredients_to_remove
+                    ]
+                    st.session_state['ingredients_modified'] = True
+                    st.rerun()
+                
+                # Add new ingredient
+                st.markdown("---")
+                col_input, col_add = st.columns([4, 1])
+                with col_input:
+                    new_ingredient = st.text_input(
+                        get_text("add_ingredient"),
+                        key="new_ingredient_result",
+                        label_visibility="collapsed",
+                        placeholder=get_text("add_ingredient")
+                    )
+                with col_add:
+                    if st.button(get_text("add_button"), key="add_btn_result", use_container_width=True):
+                        if new_ingredient and new_ingredient.strip():
+                            st.session_state['ingredients_list'].append(new_ingredient.strip())
+                            st.session_state['ingredients_modified'] = True
+                            st.rerun()
+                
+                # Regenerate button if ingredients were modified
+                if st.session_state.get('ingredients_modified', False):
+                    st.markdown("---")
+                    if st.button(get_text("regenerate_recipes"), type="primary", use_container_width=True):
+                        # Clear recipes and regenerate
+                        st.session_state.pop('recipes', None)
+                        st.session_state.pop('selected_recipe_idx', None)
+                        st.session_state['ingredients_modified'] = False
+                        
+                        # Trigger regeneration
+                        progress_text = st.empty()
+                        progress_bar = st.progress(0)
+                        
+                        try:
+                            progress_text.text(get_text("creating_recipes"))
+                            progress_bar.progress(30)
+                            
+                            lang = st.session_state.language
+                            selected_model = st.session_state.get('selected_model', 'claude')
+                            kids_mode = st.session_state.get('kids_mode', False)
+                            
+                            final_ingredients = "\n".join([f"- {ing}" for ing in st.session_state['ingredients_list']])
+                            st.session_state['ingredients'] = final_ingredients
+                            
+                            if selected_model == "claude":
+                                recipes = suggest_recipes_claude(
+                                    anthropic_client,
+                                    final_ingredients,
+                                    dietary_preferences,
+                                    cuisine_preference,
+                                    lang,
+                                    kids_mode
+                                )
+                            else:
+                                recipes = suggest_recipes_openai(
+                                    openai_client,
+                                    selected_model,
+                                    final_ingredients,
+                                    dietary_preferences,
+                                    cuisine_preference,
+                                    lang,
+                                    kids_mode
+                                )
+                            st.session_state['recipes'] = recipes
+                            
+                            progress_bar.progress(100)
+                            progress_text.empty()
+                            progress_bar.empty()
+                            st.rerun()
+                            
+                        except Exception as e:
+                            progress_bar.empty()
+                            progress_text.empty()
+                            st.error(f"⚠️ {str(e)}")
         
         # Recipe suggestions header
         st.markdown(get_text("your_recipes"))
@@ -1638,6 +1657,7 @@ def main():
                 st.session_state.pop('ingredients', None)
                 st.session_state.pop('recipes', None)
                 st.session_state.pop('selected_recipe_idx', None)
+                st.session_state.pop('ingredients_modified', None)
                 st.rerun()
     
     # Sidebar for model selection and history
