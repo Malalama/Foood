@@ -404,6 +404,14 @@ TRANSLATIONS = {
         "model_gpt4_mini": "GPT-4o-mini (OpenAI)",
         "kids_mode": "👶 Easy for kids",
         "kids_mode_help": "Simple recipes that children can help make",
+        "kids_mode_short": "Kids mode",
+        "kids_mode_tooltip": "Cooking with kids? Enable kids mode!",
+        "diet_label": "Diet",
+        "diet_none": "None",
+        "cuisine_label": "Cuisine",
+        "cuisine_all": "All",
+        "step_1": "STEP 1",
+        "your_photos": "Your ingredient photos",
         "analyzing": "🔍 Analyzing your ingredients...",
         "creating_recipes": "👨‍🍳 Creating recipe suggestions...",
         "done": "✅ Done!",
@@ -488,6 +496,14 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "model_gpt4_mini": "GPT-4o-mini (OpenAI)",
         "kids_mode": "👶 Facile pour enfants",
         "kids_mode_help": "Recettes simples que les enfants peuvent aider à préparer",
+        "kids_mode_short": "Mode enfants",
+        "kids_mode_tooltip": "On cuisine avec les enfants ? Activez le mode enfants !",
+        "diet_label": "Régime",
+        "diet_none": "Aucun",
+        "cuisine_label": "Cuisine",
+        "cuisine_all": "Toutes",
+        "step_1": "ÉTAPE 1",
+        "your_photos": "Vos photos d'ingrédients",
         "analyzing": "🔍 Analyse de vos ingrédients...",
         "creating_recipes": "👨‍🍳 Création des suggestions de recettes...",
         "done": "✅ Terminé !",
@@ -572,6 +588,14 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "model_gpt4_mini": "GPT-4o-mini (OpenAI)",
         "kids_mode": "👶 Łatwe dla dzieci",
         "kids_mode_help": "Proste przepisy, przy których dzieci mogą pomagać",
+        "kids_mode_short": "Tryb dla dzieci",
+        "kids_mode_tooltip": "Gotujesz z dziećmi? Włącz tryb dla dzieci!",
+        "diet_label": "Dieta",
+        "diet_none": "Brak",
+        "cuisine_label": "Kuchnia",
+        "cuisine_all": "Wszystkie",
+        "step_1": "KROK 1",
+        "your_photos": "Twoje zdjęcia składników",
         "analyzing": "🔍 Analizowanie składników...",
         "creating_recipes": "👨‍🍳 Tworzenie propozycji przepisów...",
         "done": "✅ Gotowe!",
@@ -775,6 +799,68 @@ st.markdown("""
     div[data-testid="column"]:first-child .stButton > button:hover {
         background: #ffeeee;
         transform: scale(1.1);
+    }
+    
+    /* Compact preferences styling */
+    .pref-card {
+        text-align: center;
+        padding: 10px 8px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    
+    /* Toggle switch styling */
+    [data-testid="stCheckbox"] > label {
+        justify-content: center;
+    }
+    
+    /* Compact selectbox */
+    [data-testid="stSelectbox"] > div > div {
+        font-size: 12px !important;
+    }
+    
+    /* Photo thumbnails */
+    .photo-thumb-container {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .photo-thumb-container img {
+        border-radius: 10px;
+        object-fit: cover;
+    }
+    
+    /* Remove button on thumbnail */
+    .thumb-remove {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #ff4444;
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    
+    /* Primary button gradient */
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(90deg, #667eea, #764ba2) !important;
+        border: none !important;
+    }
+    
+    /* Photo section card */
+    .photo-section-card {
+        background: white;
+        padding: 15px;
+        border-radius: 12px;
+        margin-top: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1275,26 +1361,38 @@ def main():
         available_models.append(("gpt-4o", get_text("model_gpt4")))
         available_models.append(("gpt-4o-mini", get_text("model_gpt4_mini")))
     
-    # Preferences in expander (mobile-friendly)
-    with st.expander(get_text("preferences"), expanded=False):
-        # Kids mode toggle
-        kids_mode = st.toggle(
-            get_text("kids_mode"),
-            value=False,
-            help=get_text("kids_mode_help")
-        )
-        
-        dietary_preferences = st.multiselect(
-            get_text("dietary_requirements"),
-            get_text("dietary_options"),
-            default=[],
-            label_visibility="collapsed"
-        )
-        
-        cuisine_preference = st.selectbox(
-            get_text("preferred_cuisine"),
-            get_text("cuisine_options")
-        )
+    # Preferences in 3 columns - compact horizontal layout
+    pref_col1, pref_col2, pref_col3 = st.columns(3)
+    
+    with pref_col1:
+        st.markdown(f"""
+        <div style='text-align: center; padding: 8px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);'>
+            <div style='font-size: 1.5rem;'>👶</div>
+            <div style='font-size: 11px; color: #666; margin: 4px 0;'>{get_text("kids_mode_short")} <span title="{get_text("kids_mode_tooltip")}" style="cursor: help; color: #667eea;">❓</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+        kids_mode = st.toggle("kids", value=False, label_visibility="collapsed", key="kids_toggle")
+    
+    with pref_col2:
+        st.markdown(f"""
+        <div style='text-align: center; padding: 8px 8px 0 8px; background: white; border-radius: 12px 12px 0 0; box-shadow: 0 -2px 8px rgba(0,0,0,0.05);'>
+            <div style='font-size: 1.5rem;'>🥗</div>
+            <div style='font-size: 11px; color: #666; margin: 4px 0;'>{get_text("diet_label")}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        diet_options = [get_text("diet_none")] + get_text("dietary_options")
+        dietary_choice = st.selectbox("diet", diet_options, label_visibility="collapsed", key="diet_select")
+        dietary_preferences = [] if dietary_choice == get_text("diet_none") else [dietary_choice]
+    
+    with pref_col3:
+        st.markdown(f"""
+        <div style='text-align: center; padding: 8px 8px 0 8px; background: white; border-radius: 12px 12px 0 0; box-shadow: 0 -2px 8px rgba(0,0,0,0.05);'>
+            <div style='font-size: 1.5rem;'>🌍</div>
+            <div style='font-size: 11px; color: #666; margin: 4px 0;'>{get_text("cuisine_label")}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        cuisine_options = [get_text("cuisine_all")] + get_text("cuisine_options")[1:]  # Skip first "Any" option
+        cuisine_preference = st.selectbox("cuisine", cuisine_options, label_visibility="collapsed", key="cuisine_select")
     
     # Store kids_mode in session state
     st.session_state['kids_mode'] = kids_mode
@@ -1303,14 +1401,20 @@ def main():
     if 'selected_model' not in st.session_state:
         st.session_state['selected_model'] = available_models[0][0] if available_models else "claude"
     
-    # Image input section with tabs for camera/upload
-    st.markdown(get_text("add_ingredients"))
-    
-    tab_camera, tab_upload = st.tabs([get_text("take_photo"), get_text("upload_image")])
+    # Photo section with new design
+    st.markdown(f"""
+    <div style='background: white; padding: 15px; border-radius: 12px; margin-top: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);'>
+        <span style='background: #667eea; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px;'>📷 {get_text("step_1")}</span>
+        <h3 style='font-size: 15px; margin: 10px 0 5px 0;'>{get_text("your_photos")}</h3>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Initialize images list in session state
     if 'images' not in st.session_state:
         st.session_state.images = []
+    
+    # Camera and upload in tabs (compact)
+    tab_camera, tab_upload = st.tabs([get_text("take_photo"), get_text("upload_image")])
     
     with tab_camera:
         camera_image = st.camera_input(
@@ -1320,7 +1424,6 @@ def main():
             key="camera"
         )
         if camera_image:
-            # Add to images list if not already there
             if camera_image not in st.session_state.images:
                 st.session_state.images.append(camera_image)
     
@@ -1337,17 +1440,22 @@ def main():
                 if img not in st.session_state.images:
                     st.session_state.images.append(img)
     
-    # Display all collected images
+    # Display collected images as thumbnails
     if st.session_state.images:
-        st.markdown(f"**{get_text('photos_count').format(count=len(st.session_state.images))}**")
+        st.markdown(f"<p style='font-size: 12px; color: #666; margin: 5px 0;'>{get_text('photos_count').format(count=len(st.session_state.images))}</p>", unsafe_allow_html=True)
         
-        # Show images in a grid
-        cols = st.columns(min(len(st.session_state.images), 3))
+        # Show images as small thumbnails in a row
+        num_images = len(st.session_state.images)
+        thumb_cols = st.columns(min(num_images + 1, 6))  # +1 for potential add button, max 6
+        
         for idx, img in enumerate(st.session_state.images):
-            with cols[idx % 3]:
-                st.image(img, use_container_width=True)
+            with thumb_cols[idx % 6]:
+                st.image(img, width=70)
+                if st.button("✕", key=f"remove_img_{idx}", help="Remove"):
+                    st.session_state.images.pop(idx)
+                    st.rerun()
         
-        # Clear images button and Find Recipes button
+        # Action buttons
         col_clear, col_find = st.columns(2)
         with col_clear:
             if st.button(get_text("clear_photos"), use_container_width=True):
