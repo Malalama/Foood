@@ -771,18 +771,25 @@ st.markdown("""
         font-size: 0.85rem;
     }
     
-    /* Language selector flags */
+    /* Language selector buttons */
     .stButton > button[kind="secondary"] {
-        background: transparent;
-        border: 2px solid #e0e0e0;
-        font-size: 1.5rem;
+        background: white !important;
+        border: 2px solid #e0e0e0 !important;
+        color: #333 !important;
+        font-size: 0.9rem;
         padding: 0.3rem;
         min-height: 40px;
     }
     
     .stButton > button[kind="secondary"]:hover {
-        border-color: #4ECDC4;
-        transform: scale(1.1);
+        border-color: #667eea !important;
+        background: #f8f8ff !important;
+    }
+    
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(90deg, #667eea, #764ba2) !important;
+        color: white !important;
+        border: none !important;
     }
     
     /* Ingredient delete button */
@@ -1327,17 +1334,28 @@ def main():
         st.markdown(f'<h1 class="main-header" style="margin-bottom: 0;">{get_text("title")}</h1>', unsafe_allow_html=True)
     
     with header_col2:
+        # Custom CSS for language buttons
+        st.markdown("""
+        <style>
+        [data-testid="stHorizontalBlock"]:has(button[key*="lang"]) {
+            align-items: center;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         lang_cols = st.columns(3)
         with lang_cols[0]:
-            if st.button("EN", use_container_width=True, type="primary" if st.session_state.language == 'en' else "secondary", key="lang_en"):
+            en_type = "primary" if st.session_state.language == 'en' else "secondary"
+            if st.button("EN", use_container_width=True, type=en_type, key="lang_en"):
                 st.session_state.language = 'en'
                 st.rerun()
         with lang_cols[1]:
-            if st.button("FR", use_container_width=True, type="primary" if st.session_state.language == 'fr' else "secondary", key="lang_fr"):
+            fr_type = "primary" if st.session_state.language == 'fr' else "secondary"
+            if st.button("FR", use_container_width=True, type=fr_type, key="lang_fr"):
                 st.session_state.language = 'fr'
                 st.rerun()
         with lang_cols[2]:
-            if st.button("PL", use_container_width=True, type="primary" if st.session_state.language == 'pl' else "secondary", key="lang_pl"):
+            pl_type = "primary" if st.session_state.language == 'pl' else "secondary"
+            if st.button("PL", use_container_width=True, type=pl_type, key="lang_pl"):
                 st.session_state.language = 'pl'
                 st.rerun()
     
@@ -1360,17 +1378,16 @@ def main():
         available_models.append(("gpt-4o", get_text("model_gpt4")))
         available_models.append(("gpt-4o-mini", get_text("model_gpt4_mini")))
     
-    # Compact preferences in single row
+    # Compact preferences in single row - all same style
     pref_col1, pref_col2, pref_col3 = st.columns(3)
     
     with pref_col1:
-        st.markdown(f"""
-        <div style='display: flex; align-items: center; gap: 8px; padding: 8px; background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);'>
-            <span style='font-size: 1.2rem;'>👶</span>
-            <span style='font-size: 10px; color: #666;'>{get_text("kids_mode_short")} <span title="{get_text("kids_mode_tooltip")}" style="cursor: help; color: #667eea;">❓</span></span>
-        </div>
-        """, unsafe_allow_html=True)
-        kids_mode = st.toggle("kids", value=False, label_visibility="collapsed", key="kids_toggle")
+        kids_mode = st.toggle(
+            f"👶 {get_text('kids_mode_short')} ❓",
+            value=False,
+            key="kids_toggle",
+            help=get_text("kids_mode_tooltip")
+        )
     
     with pref_col2:
         diet_options = [get_text("diet_none")] + get_text("dietary_options")
