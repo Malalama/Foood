@@ -398,6 +398,8 @@ TRANSLATIONS = {
         "model_claude": "Claude (Anthropic)",
         "model_gpt4": "GPT-4o (OpenAI)",
         "model_gpt4_mini": "GPT-4o-mini (OpenAI)",
+        "kids_mode": "👶 Easy for kids",
+        "kids_mode_help": "Simple recipes that children can help make",
         "analyzing": "🔍 Analyzing your ingredients...",
         "creating_recipes": "👨‍🍳 Creating recipe suggestions...",
         "done": "✅ Done!",
@@ -476,6 +478,8 @@ Focus on practical, delicious recipes that make good use of the available ingred
         "model_claude": "Claude (Anthropic)",
         "model_gpt4": "GPT-4o (OpenAI)",
         "model_gpt4_mini": "GPT-4o-mini (OpenAI)",
+        "kids_mode": "👶 Facile pour enfants",
+        "kids_mode_help": "Recettes simples que les enfants peuvent aider à préparer",
         "analyzing": "🔍 Analyse de vos ingrédients...",
         "creating_recipes": "👨‍🍳 Création des suggestions de recettes...",
         "done": "✅ Terminé !",
@@ -554,6 +558,8 @@ Concentrez-vous sur des recettes pratiques et délicieuses. Minimisez les ingré
         "model_claude": "Claude (Anthropic)",
         "model_gpt4": "GPT-4o (OpenAI)",
         "model_gpt4_mini": "GPT-4o-mini (OpenAI)",
+        "kids_mode": "👶 Łatwe dla dzieci",
+        "kids_mode_help": "Proste przepisy, przy których dzieci mogą pomagać",
         "analyzing": "🔍 Analizowanie składników...",
         "creating_recipes": "👨‍🍳 Tworzenie propozycji przepisów...",
         "done": "✅ Gotowe!",
@@ -969,7 +975,7 @@ def identify_ingredients_openai(client, image_data: str, media_type: str, model:
             raise Exception(f"Unexpected error: {str(e)}")
 
 
-def get_recipe_prompt(ingredients: str, preferences_text: str, lang: str) -> str:
+def get_recipe_prompt(ingredients: str, preferences_text: str, lang: str, kids_mode: bool = False) -> str:
     """Generate the recipe suggestion prompt."""
     lang_instructions = {
         "en": "Respond in English.",
@@ -977,10 +983,43 @@ def get_recipe_prompt(ingredients: str, preferences_text: str, lang: str) -> str
         "pl": "Odpowiedz po polsku."
     }
     
+    kids_instructions = {
+        "en": """
+IMPORTANT - KIDS MODE ENABLED:
+- Recipes must be VERY EASY and safe for children aged 6-12 to help prepare
+- Avoid sharp knives, hot oil, raw meat handling
+- Prefer no-cook or simple cooking (microwave, oven with adult supervision)
+- Use fun, kid-friendly names for dishes
+- Include simple tasks kids can do: mixing, pouring, decorating
+- Prefer familiar flavors that children typically enjoy
+- Keep instructions simple and clear""",
+        "fr": """
+IMPORTANT - MODE ENFANTS ACTIVÉ:
+- Les recettes doivent être TRÈS FACILES et sûres pour des enfants de 6-12 ans
+- Éviter les couteaux tranchants, l'huile chaude, la manipulation de viande crue
+- Préférer sans cuisson ou cuisson simple (micro-ondes, four avec surveillance)
+- Utiliser des noms amusants pour les plats
+- Inclure des tâches simples pour enfants: mélanger, verser, décorer
+- Préférer les saveurs familières que les enfants aiment
+- Instructions simples et claires""",
+        "pl": """
+WAŻNE - TRYB DLA DZIECI WŁĄCZONY:
+- Przepisy muszą być BARDZO ŁATWE i bezpieczne dla dzieci w wieku 6-12 lat
+- Unikać ostrych noży, gorącego oleju, surowego mięsa
+- Preferować bez gotowania lub proste gotowanie (mikrofalówka, piekarnik z nadzorem)
+- Używać zabawnych nazw potraw
+- Dołączyć proste zadania dla dzieci: mieszanie, nalewanie, dekorowanie
+- Preferować znajome smaki, które dzieci lubią
+- Instrukcje proste i jasne"""
+    }
+    
+    kids_text = kids_instructions.get(lang, kids_instructions["en"]) if kids_mode else ""
+    
     return f"""Based on these available ingredients:
 
 {ingredients}
 {preferences_text}
+{kids_text}
 
 Suggest 3 recipes that can be made primarily with these ingredients.
 
@@ -1027,7 +1066,7 @@ def parse_recipe_response(response_text: str) -> dict:
         return {"raw_text": response_text, "parse_error": str(e)}
 
 
-def suggest_recipes_claude(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en") -> dict:
+def suggest_recipes_claude(client, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en", kids_mode: bool = False) -> dict:
     """Use Claude to suggest recipes based on identified ingredients."""
     
     preferences_text = ""
@@ -1038,7 +1077,7 @@ def suggest_recipes_claude(client, ingredients: str, dietary_preferences: list =
     
     max_retries = 3
     retry_delay = 2
-    prompt = get_recipe_prompt(ingredients, preferences_text, lang)
+    prompt = get_recipe_prompt(ingredients, preferences_text, lang, kids_mode)
 
     for attempt in range(max_retries):
         try:
@@ -1078,7 +1117,7 @@ def suggest_recipes_claude(client, ingredients: str, dietary_preferences: list =
             raise Exception(f"Unexpected error: {str(e)}")
 
 
-def suggest_recipes_openai(client, model: str, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en") -> dict:
+def suggest_recipes_openai(client, model: str, ingredients: str, dietary_preferences: list = None, cuisine_preference: str = None, lang: str = "en", kids_mode: bool = False) -> dict:
     """Use OpenAI to suggest recipes based on identified ingredients."""
     
     preferences_text = ""
@@ -1089,7 +1128,7 @@ def suggest_recipes_openai(client, model: str, ingredients: str, dietary_prefere
     
     max_retries = 3
     retry_delay = 2
-    prompt = get_recipe_prompt(ingredients, preferences_text, lang)
+    prompt = get_recipe_prompt(ingredients, preferences_text, lang, kids_mode)
 
     for attempt in range(max_retries):
         try:
@@ -1186,15 +1225,18 @@ def main():
     # Language selector with flags at the top
     col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
     with col1:
-        if st.button("🇬🇧", use_container_width=True, help="English"):
+        selected = "primary" if st.session_state.language == 'en' else "secondary"
+        if st.button("🇬🇧 EN", use_container_width=True, help="English", type=selected):
             st.session_state.language = 'en'
             st.rerun()
     with col2:
-        if st.button("🇫🇷", use_container_width=True, help="Français"):
+        selected = "primary" if st.session_state.language == 'fr' else "secondary"
+        if st.button("🇫🇷 FR", use_container_width=True, help="Français", type=selected):
             st.session_state.language = 'fr'
             st.rerun()
     with col3:
-        if st.button("🇵🇱", use_container_width=True, help="Polski"):
+        selected = "primary" if st.session_state.language == 'pl' else "secondary"
+        if st.button("🇵🇱 PL", use_container_width=True, help="Polski", type=selected):
             st.session_state.language = 'pl'
             st.rerun()
     
@@ -1223,6 +1265,13 @@ def main():
     
     # Preferences in expander (mobile-friendly)
     with st.expander(get_text("preferences"), expanded=False):
+        # Kids mode toggle
+        kids_mode = st.toggle(
+            get_text("kids_mode"),
+            value=False,
+            help=get_text("kids_mode_help")
+        )
+        
         dietary_preferences = st.multiselect(
             get_text("dietary_requirements"),
             get_text("dietary_options"),
@@ -1234,6 +1283,9 @@ def main():
             get_text("preferred_cuisine"),
             get_text("cuisine_options")
         )
+    
+    # Store kids_mode in session state
+    st.session_state['kids_mode'] = kids_mode
     
     # Set default model if only one available
     if 'selected_model' not in st.session_state:
@@ -1419,6 +1471,7 @@ def main():
                     
                     lang = st.session_state.language
                     selected_model = st.session_state.get('selected_model', 'claude')
+                    kids_mode = st.session_state.get('kids_mode', False)
                     
                     # Generate recipes using selected model
                     if selected_model == "claude":
@@ -1427,7 +1480,8 @@ def main():
                             final_ingredients,
                             dietary_preferences,
                             cuisine_preference,
-                            lang
+                            lang,
+                            kids_mode
                         )
                     else:
                         recipes = suggest_recipes_openai(
@@ -1436,7 +1490,8 @@ def main():
                             final_ingredients,
                             dietary_preferences,
                             cuisine_preference,
-                            lang
+                            lang,
+                            kids_mode
                         )
                     st.session_state['recipes'] = recipes
                     
