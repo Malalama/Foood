@@ -1226,17 +1226,17 @@ def main():
     col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
     with col1:
         selected = "primary" if st.session_state.language == 'en' else "secondary"
-        if st.button("🇬🇧 EN", use_container_width=True, help="English", type=selected):
+        if st.button("English", use_container_width=True, help="English", type=selected):
             st.session_state.language = 'en'
             st.rerun()
     with col2:
         selected = "primary" if st.session_state.language == 'fr' else "secondary"
-        if st.button("🇫🇷 FR", use_container_width=True, help="Français", type=selected):
+        if st.button("Français", use_container_width=True, help="Français", type=selected):
             st.session_state.language = 'fr'
             st.rerun()
     with col3:
         selected = "primary" if st.session_state.language == 'pl' else "secondary"
-        if st.button("🇵🇱 PL", use_container_width=True, help="Polski", type=selected):
+        if st.button("Polski", use_container_width=True, help="Polski", type=selected):
             st.session_state.language = 'pl'
             st.rerun()
     
