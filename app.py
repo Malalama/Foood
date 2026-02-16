@@ -1320,27 +1320,26 @@ def main():
     if 'language' not in st.session_state:
         st.session_state.language = 'en'
     
-    # Language selector with flags at the top
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
-    with col1:
-        selected = "primary" if st.session_state.language == 'en' else "secondary"
-        if st.button("English", use_container_width=True, help="English", type=selected):
-            st.session_state.language = 'en'
-            st.rerun()
-    with col2:
-        selected = "primary" if st.session_state.language == 'fr' else "secondary"
-        if st.button("Français", use_container_width=True, help="Français", type=selected):
-            st.session_state.language = 'fr'
-            st.rerun()
-    with col3:
-        selected = "primary" if st.session_state.language == 'pl' else "secondary"
-        if st.button("Polski", use_container_width=True, help="Polski", type=selected):
-            st.session_state.language = 'pl'
-            st.rerun()
+    # Compact header: Title + Language selector on same line
+    header_col1, header_col2 = st.columns([3, 2])
     
-    # Header
-    st.markdown(f'<h1 class="main-header">{get_text("title")}</h1>', unsafe_allow_html=True)
-    st.markdown(f'<p class="subtitle">{get_text("subtitle")}</p>', unsafe_allow_html=True)
+    with header_col1:
+        st.markdown(f'<h1 class="main-header" style="margin-bottom: 0;">{get_text("title")}</h1>', unsafe_allow_html=True)
+    
+    with header_col2:
+        lang_cols = st.columns(3)
+        with lang_cols[0]:
+            if st.button("EN", use_container_width=True, type="primary" if st.session_state.language == 'en' else "secondary", key="lang_en"):
+                st.session_state.language = 'en'
+                st.rerun()
+        with lang_cols[1]:
+            if st.button("FR", use_container_width=True, type="primary" if st.session_state.language == 'fr' else "secondary", key="lang_fr"):
+                st.session_state.language = 'fr'
+                st.rerun()
+        with lang_cols[2]:
+            if st.button("PL", use_container_width=True, type="primary" if st.session_state.language == 'pl' else "secondary", key="lang_pl"):
+                st.session_state.language = 'pl'
+                st.rerun()
     
     # Initialize clients
     anthropic_client = init_anthropic()
@@ -1361,38 +1360,26 @@ def main():
         available_models.append(("gpt-4o", get_text("model_gpt4")))
         available_models.append(("gpt-4o-mini", get_text("model_gpt4_mini")))
     
-    # Preferences in 3 columns - compact horizontal layout
+    # Compact preferences in single row
     pref_col1, pref_col2, pref_col3 = st.columns(3)
     
     with pref_col1:
         st.markdown(f"""
-        <div style='text-align: center; padding: 8px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);'>
-            <div style='font-size: 1.5rem;'>👶</div>
-            <div style='font-size: 11px; color: #666; margin: 4px 0;'>{get_text("kids_mode_short")} <span title="{get_text("kids_mode_tooltip")}" style="cursor: help; color: #667eea;">❓</span></div>
+        <div style='display: flex; align-items: center; gap: 8px; padding: 8px; background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);'>
+            <span style='font-size: 1.2rem;'>👶</span>
+            <span style='font-size: 10px; color: #666;'>{get_text("kids_mode_short")} <span title="{get_text("kids_mode_tooltip")}" style="cursor: help; color: #667eea;">❓</span></span>
         </div>
         """, unsafe_allow_html=True)
         kids_mode = st.toggle("kids", value=False, label_visibility="collapsed", key="kids_toggle")
     
     with pref_col2:
-        st.markdown(f"""
-        <div style='text-align: center; padding: 8px 8px 0 8px; background: white; border-radius: 12px 12px 0 0; box-shadow: 0 -2px 8px rgba(0,0,0,0.05);'>
-            <div style='font-size: 1.5rem;'>🥗</div>
-            <div style='font-size: 11px; color: #666; margin: 4px 0;'>{get_text("diet_label")}</div>
-        </div>
-        """, unsafe_allow_html=True)
         diet_options = [get_text("diet_none")] + get_text("dietary_options")
-        dietary_choice = st.selectbox("diet", diet_options, label_visibility="collapsed", key="diet_select")
+        dietary_choice = st.selectbox(f"🥗 {get_text('diet_label')}", diet_options, label_visibility="visible", key="diet_select")
         dietary_preferences = [] if dietary_choice == get_text("diet_none") else [dietary_choice]
     
     with pref_col3:
-        st.markdown(f"""
-        <div style='text-align: center; padding: 8px 8px 0 8px; background: white; border-radius: 12px 12px 0 0; box-shadow: 0 -2px 8px rgba(0,0,0,0.05);'>
-            <div style='font-size: 1.5rem;'>🌍</div>
-            <div style='font-size: 11px; color: #666; margin: 4px 0;'>{get_text("cuisine_label")}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        cuisine_options = [get_text("cuisine_all")] + get_text("cuisine_options")[1:]  # Skip first "Any" option
-        cuisine_preference = st.selectbox("cuisine", cuisine_options, label_visibility="collapsed", key="cuisine_select")
+        cuisine_options = [get_text("cuisine_all")] + get_text("cuisine_options")[1:]
+        cuisine_preference = st.selectbox(f"🌍 {get_text('cuisine_label')}", cuisine_options, label_visibility="visible", key="cuisine_select")
     
     # Store kids_mode in session state
     st.session_state['kids_mode'] = kids_mode
@@ -1401,11 +1388,13 @@ def main():
     if 'selected_model' not in st.session_state:
         st.session_state['selected_model'] = available_models[0][0] if available_models else "claude"
     
-    # Photo section with new design
+    # Photo section - compact
     st.markdown(f"""
-    <div style='background: white; padding: 15px; border-radius: 12px; margin-top: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);'>
-        <span style='background: #667eea; color: white; font-size: 10px; padding: 3px 8px; border-radius: 10px;'>📷 {get_text("step_1")}</span>
-        <h3 style='font-size: 15px; margin: 10px 0 5px 0;'>{get_text("your_photos")}</h3>
+    <div style='background: white; padding: 12px; border-radius: 10px; margin-top: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);'>
+        <div style='display: flex; align-items: center; gap: 8px;'>
+            <span style='background: #667eea; color: white; font-size: 9px; padding: 2px 6px; border-radius: 6px;'>📷 {get_text("step_1")}</span>
+            <span style='font-size: 13px; font-weight: 600;'>{get_text("your_photos")}</span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
