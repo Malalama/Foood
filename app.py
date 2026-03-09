@@ -797,10 +797,10 @@ st.markdown("""
         background: transparent;
         border: none;
         color: #ff4444;
-        font-size: 1.2rem;
-        padding: 0.2rem;
-        min-height: 35px;
-        min-width: 35px;
+        font-size: 0.7rem;
+        padding: 0.1rem;
+        min-height: 24px;
+        min-width: 24px;
     }
     
     div[data-testid="column"]:first-child .stButton > button:hover {
